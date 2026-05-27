@@ -751,7 +751,7 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
     setCollapsed(new Set(months.filter(m => m !== latest)));
   }, [data]);
   const toggleM = m => setCollapsed(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
-  const { tbRef: iTbRef, grab: iGrab, init: iW } = useColResize([28,130,120,160,105,100,118,112,170,100,104,88,100,118,140]);
+  const { tbRef: iTbRef, grab: iGrab, init: iW } = useColResize([22,88,86,110,72,76,84,68,124,78,86,68,76,84,100]);
 
   const filtered = useMemo(() =>
     data.filter(r =>
@@ -1766,6 +1766,17 @@ export default function ClientApp() {
     return DEFAULT_APP_SETTINGS;
   });
   const updateAppSettings = useCallback(s => { setAppSettings(s); localStorage.setItem('appSettings', JSON.stringify(s)); }, []);
+  const [appName, setAppName] = useState(() => localStorage.getItem('appName') || '채용관리');
+  const [logoImg, setLogoImg]  = useState(() => localStorage.getItem('logoImg')  || '');
+  const [editingAppName, setEditingAppName] = useState(false);
+  const logoInputRef = useRef(null);
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { const d = ev.target.result; setLogoImg(d); localStorage.setItem('logoImg', d); };
+    reader.readAsDataURL(file);
+  };
+  const saveAppName = (v) => { const n=v.trim()||'채용관리'; setAppName(n); localStorage.setItem('appName',n); setEditingAppName(false); };
   const [theme, setTheme] = useState('light');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sheetStatus, setSheetStatus] = useState(null);
@@ -1962,14 +1973,24 @@ export default function ClientApp() {
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen?'open':''}`}>
         <div className="sidebar-logo">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="7" fill="var(--color-primary)"/>
-            <path d="M8 20V10l6-3 6 3v10" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            <rect x="11" y="14" width="6" height="6" rx="1" stroke="#fff" strokeWidth="1.8"/>
-            <path d="M14 14v-4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
-          </svg>
-          <div>
-            <div className="sidebar-logo-text">채용관리</div>
+          {/* 로고 — 클릭하면 이미지 교체 */}
+          <input ref={logoInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleLogoUpload}/>
+          <div title="클릭해서 로고 이미지 교체" onClick={()=>logoInputRef.current?.click()}
+            style={{width:28,height:28,borderRadius:7,background:'var(--color-primary)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer',overflow:'hidden'}}>
+            {logoImg
+              ? <img src={logoImg} alt="logo" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+              : <span style={{color:'#fff',fontWeight:800,fontSize:11,letterSpacing:'-0.5px',fontFamily:'sans-serif',userSelect:'none'}}>HR</span>
+            }
+          </div>
+          <div style={{minWidth:0}}>
+            {/* 앱 이름 — 클릭하면 인라인 편집 */}
+            {editingAppName
+              ? <input autoFocus className="inline-input" defaultValue={appName}
+                  style={{fontSize:'var(--text-base)',fontWeight:700,color:'var(--color-text)',padding:'1px 4px',width:'100%'}}
+                  onBlur={e=>saveAppName(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter') saveAppName(e.target.value); if(e.key==='Escape') setEditingAppName(false); }}/>
+              : <div className="sidebar-logo-text" title="클릭해서 이름 수정" onClick={()=>setEditingAppName(true)} style={{cursor:'pointer'}}>{appName}</div>
+            }
             <div className="sidebar-logo-sub">인사팀 포털</div>
           </div>
         </div>
