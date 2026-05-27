@@ -1075,14 +1075,15 @@ function JDReport({ jds, costs, onClose }) {
 /* ═══════════════════════════════════════════
    COST PLAN REPORT MODAL
 ═══════════════════════════════════════════ */
-const PLAT_KEYS   = ['saramin','jobkorea','albamon','wanted'];
-const PLAT_LABELS = { saramin:'사람인', jobkorea:'잡코리아', albamon:'알바몬', wanted:'원티드' };
+const PLAT_KEYS     = ['saramin','jobkorea','albamon','wanted','remember'];
+const PLAT_LABELS   = { saramin:'사람인', jobkorea:'잡코리아', albamon:'알바몬', wanted:'원티드', remember:'리멤버' };
+const PLAT_VARIABLE = ['wanted','remember']; // 연봉 % 수수료 플랫폼
 
 function CostPlanReport({ activeJDs, periods, plan, onClose }) {
   const parseAmt = t => { if(!t||!t.trim()||t.trim()==='-') return 0; const n=Number(t.replace(/[^0-9]/g,'')); return isNaN(n)?0:n; };
   const totals = {};
   PLAT_KEYS.forEach(k => { totals[k] = activeJDs.reduce((s,r) => s+parseAmt((plan[r.id]||{})[k]), 0); });
-  const grandTotal = Object.values(totals).reduce((s,v)=>s+v, 0);
+  const fixedTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(totals[k]||0), 0);
   const colH = k => PLAT_LABELS[k] + (periods[k] ? ` (${periods[k]})` : '');
 
   const handlePrint = () => {
@@ -1117,7 +1118,7 @@ function CostPlanReport({ activeJDs, periods, plan, onClose }) {
         <div id="cost-plan-rpt-inner">
           <h1 style={{margin:'0 0 4px',fontWeight:700}}>채용 예상 비용 보고서</h1>
           <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:20}}>
-            진행중 포지션 {activeJDs.length}개 · 총 예상 비용 {fmtAmount(grandTotal)}
+            진행중 포지션 {activeJDs.length}개 · 총 예상 비용 {fmtAmount(fixedTotal)} + α
           </div>
 
           <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>1. 포지션별 예상 채용 비용</h2>
@@ -1147,7 +1148,7 @@ function CostPlanReport({ activeJDs, periods, plan, onClose }) {
                 </tr>
                 <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
                   <td style={{padding:'7px 8px'}}>총 예상 비용</td>
-                  <td colSpan={PLAT_KEYS.length} style={{padding:'7px 8px',textAlign:'right',fontSize:'var(--text-sm)'}}>{fmtAmount(grandTotal)}</td>
+                  <td colSpan={PLAT_KEYS.length} style={{padding:'7px 8px',textAlign:'right',fontSize:'var(--text-sm)'}}>{fmtAmount(fixedTotal)} + α</td>
                   <td style={{padding:'7px 8px'}}/>
                 </tr>
               </tfoot>
@@ -1162,17 +1163,27 @@ function CostPlanReport({ activeJDs, periods, plan, onClose }) {
               <th style={{...thS,textAlign:'right'}}>비율</th>
             </tr></thead>
             <tbody>
-              {PLAT_KEYS.filter(k=>totals[k]>0).sort((a,b)=>totals[b]-totals[a]).map((k,i)=>(
+              {PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)&&totals[k]>0).sort((a,b)=>totals[b]-totals[a]).map((k,i)=>(
                 <tr key={k}>
                   <td style={tdS(i)}>{PLAT_LABELS[k]}</td>
                   <td style={{...tdS(i),textAlign:'right'}}>{fmtAmount(totals[k])}</td>
-                  <td style={{...tdS(i),textAlign:'right'}}>{grandTotal>0?Math.round(totals[k]/grandTotal*100):0}%</td>
+                  <td style={{...tdS(i),textAlign:'right'}}>{fixedTotal>0?Math.round(totals[k]/fixedTotal*100):0}%</td>
                 </tr>
               ))}
+              {PLAT_VARIABLE.map((k,i)=>{
+                const idx = PLAT_KEYS.filter(p=>!PLAT_VARIABLE.includes(p)&&totals[p]>0).length + i;
+                return (
+                  <tr key={k}>
+                    <td style={tdS(idx)}>{PLAT_LABELS[k]}</td>
+                    <td style={{...tdS(idx),textAlign:'right',fontStyle:'italic',color:'var(--color-text-muted)'}}>연봉 7%</td>
+                    <td style={{...tdS(idx),textAlign:'right'}}>-</td>
+                  </tr>
+                );
+              })}
               <tr style={{fontWeight:700}}>
                 <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}>합계</td>
-                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{fmtAmount(grandTotal)}</td>
-                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>100%</td>
+                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{fmtAmount(fixedTotal)} + α</td>
+                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>-</td>
               </tr>
             </tbody>
           </table>
@@ -1198,14 +1209,14 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
 
   // 보고서 관리 탭 상태
   const [periods, setPeriods]       = useState(() => { try { return JSON.parse(localStorage.getItem('jdPeriods'))||{}; } catch { return {}; } });
-  const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',note:'',...(r.costPlan||{})}; }); return p; });
+  const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:'',...(r.costPlan||{})}; }); return p; });
   const [showCostReport, setShowCostReport] = useState(false);
   const [planDirty, setPlanDirty]   = useState(false);
 
   useEffect(() => {
     setLocalPlan(prev => {
       const p={...prev};
-      data.forEach(r=>{ if(!p[r.id]) p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',note:'',...(r.costPlan||{})}; });
+      data.forEach(r=>{ if(!p[r.id]) p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:'',...(r.costPlan||{})}; });
       return p;
     });
   }, [data]);
@@ -1214,10 +1225,15 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const activeJDs = data.filter(r => r.status==='진행중');
   const planTotals = {};
   PLAT_KEYS.forEach(k=>{ planTotals[k]=activeJDs.reduce((s,r)=>s+parseAmt((localPlan[r.id]||{})[k]),0); });
-  const planGrandTotal = Object.values(planTotals).reduce((s,v)=>s+v,0);
+  const planFixedTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(planTotals[k]||0),0);
 
   const updateLocalPlan = (id, field, value) => {
-    setLocalPlan(prev=>({...prev,[id]:{...(prev[id]||{}),[field]:value}}));
+    let v = value;
+    if (field !== 'note' && value && !value.includes('%')) {
+      const n = Number(value.replace(/[^0-9]/g, ''));
+      if (!isNaN(n) && String(n).length > 0 && value.replace(/[^0-9]/g,'').length > 0) v = n.toLocaleString('ko-KR');
+    }
+    setLocalPlan(prev=>({...prev,[id]:{...(prev[id]||{}),[field]:v}}));
     setPlanDirty(true);
   };
   const saveCostPlan = () => {
@@ -1376,8 +1392,8 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
           <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
             {PLAT_KEYS.map(k=>(
               <div key={k} style={{display:'flex',alignItems:'center',gap:6}}>
-                <span style={{fontSize:'var(--text-sm)',color:'var(--color-text-muted)',minWidth:52}}>{PLAT_LABELS[k]}</span>
-                <input className="search-input" style={{width:72}} placeholder="예: 3일"
+                <span style={{fontSize:'var(--text-sm)',color:'var(--color-text-muted)',minWidth:44,flexShrink:0}}>{PLAT_LABELS[k]}</span>
+                <input className="search-input" style={{width:88}} placeholder="예: 3일"
                   value={periods[k]||''}
                   onChange={e=>setPeriods(p=>({...p,[k]:e.target.value}))}
                   onBlur={()=>{ localStorage.setItem('jdPeriods', JSON.stringify(periods)); }}
@@ -1396,16 +1412,16 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
             <div style={{display:'flex',gap:8}}>
               {planDirty && <button className="btn btn-secondary" style={{fontSize:12}} onClick={saveCostPlan}>💾 저장</button>}
               <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',alignSelf:'center'}}>
-                총 예상: <strong style={{color:'var(--color-primary)'}}>{fmtAmount(planGrandTotal)}</strong>
+                총 예상: <strong style={{color:'var(--color-primary)'}}>{fmtAmount(planFixedTotal)} + α</strong>
               </span>
             </div>
           </div>
           <div className="table-wrap">
-            <table className="data-table" style={{tableLayout:'fixed',minWidth:700}}>
+            <table className="data-table" style={{tableLayout:'fixed',minWidth:800}}>
               <colgroup>
-                <col style={{width:190}}/>
-                {PLAT_KEYS.map(k=><col key={k} style={{width:120}}/>)}
-                <col style={{width:160}}/>
+                <col style={{width:170}}/>
+                {PLAT_KEYS.map(k=><col key={k} style={{width:105}}/>)}
+                <col style={{width:140}}/>
               </colgroup>
               <thead>
                 <tr>
@@ -1416,7 +1432,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
               </thead>
               <tbody>
                 {activeJDs.length === 0
-                  ? <tr><td colSpan={6} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'24px 0'}}>진행중인 포지션이 없습니다</td></tr>
+                  ? <tr><td colSpan={PLAT_KEYS.length+2} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'24px 0'}}>진행중인 포지션이 없습니다</td></tr>
                   : activeJDs.map(r=>(
                     <tr key={r.id}>
                       <td style={{fontWeight:500,fontSize:'var(--text-sm)'}}>{r.position}</td>
@@ -1438,7 +1454,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                 </tr>
                 <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
                   <td>총 예상 비용</td>
-                  <td colSpan={PLAT_KEYS.length} style={{textAlign:'right'}}>{fmtAmount(planGrandTotal)}</td>
+                  <td colSpan={PLAT_KEYS.length} style={{textAlign:'right'}}>{fmtAmount(planFixedTotal)} + α</td>
                   <td/>
                 </tr>
               </tfoot>}
