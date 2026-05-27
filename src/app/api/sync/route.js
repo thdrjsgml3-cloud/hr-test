@@ -60,7 +60,7 @@ export async function POST() {
     const interviews = iT.rows.map(r => ({ _raw: r.c })).filter(r => col(r._raw, 1) !== '')
       .map((r, i) => ({
         id: i + 1, name: col(r._raw, 8), contact: col(r._raw, 9), job: col(r._raw, 6),
-        type: '지원자', platform: col(r._raw, 3) || '사람인',
+        type: '지원자', platform: col(r._raw, 18) || '사람인',
         date: normDate(col(r._raw, 1)), time: col(r._raw, 2), interviewer: col(r._raw, 11),
         manager: col(r._raw, 12), attendance: col(r._raw, 13), passed: col(r._raw, 14),
         guided: col(r._raw, 15), startDate: normDate(col(r._raw, 16)), memo: col(r._raw, 17),
