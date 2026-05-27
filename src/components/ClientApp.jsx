@@ -202,6 +202,18 @@ function DateInput({ value, onSave }) {
   );
 }
 
+/* ── type="date" / type="time" — blur 시에만 저장 ── */
+function InlineDatePicker({ value, onSave }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current && ref.current !== document.activeElement) ref.current.value = value || ''; }, [value]);
+  return <input ref={ref} className="inline-input" type="date" defaultValue={value || ''} onBlur={e => onSave(e.target.value)} />;
+}
+function InlineTimePicker({ value, onSave }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current && ref.current !== document.activeElement) ref.current.value = value || ''; }, [value]);
+  return <input ref={ref} className="inline-input" type="time" defaultValue={value || ''} onBlur={e => onSave(e.target.value)} />;
+}
+
 /* ── 열 너비 드래그 조정 ── */
 function useColResize(init) {
   const tbRef = useRef(null);
@@ -552,14 +564,14 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
                         <td><InlineText value={r.job} onSave={v=>onUpdate(r.id,'job',v)} placeholder="직무"/></td>
                         <td><select className="inline-select" value={r.type} onChange={e=>onUpdateType(r.id,e.target.value)}><option value="">선택</option><option>지원자</option><option>포지션 제안자</option></select></td>
                         <td><select className="inline-select" value={r.platform} onChange={e=>onUpdate(r.id,'platform',e.target.value)}>{plats.map(p=><option key={p}>{p}</option>)}</select></td>
-                        <td><input className="inline-input" type="date" value={r.date} onChange={e=>onUpdate(r.id,'date',e.target.value)}/></td>
-                        <td><input className="inline-input" type="time" value={r.time||''} onChange={e=>onUpdate(r.id,'time',e.target.value)}/></td>
+                        <td><InlineDatePicker value={r.date} onSave={v=>onUpdate(r.id,'date',v)}/></td>
+                        <td><InlineTimePicker value={r.time||''} onSave={v=>onUpdate(r.id,'time',v)}/></td>
                         <td><InlineText value={r.interviewer} onSave={v=>onUpdate(r.id,'interviewer',v)}/></td>
                         <td><select className="inline-select" value={r.manager} onChange={e=>onUpdate(r.id,'manager',e.target.value)}><option value="">선택</option>{appSettings.managers.map(m=><option key={m}>{m}</option>)}</select></td>
                         <td><select className="inline-select" value={r.attendance||''} onChange={e=>onUpdate(r.id,'attendance',e.target.value)}><option value="">-</option><option>확인중</option><option>불참</option><option>참석확인</option><option>참석</option></select></td>
                         <td><select className="inline-select" value={r.passed||''} onChange={e=>onUpdate(r.id,'passed',e.target.value)}><option value="">-</option><option>불합격</option><option>합격</option></select></td>
                         <td><select className="inline-select" value={r.guided||''} onChange={e=>onUpdate(r.id,'guided',e.target.value)}><option value="">-</option><option>안내완료</option><option>미안내</option></select></td>
-                        <td><input className="inline-input" type="date" value={r.startDate||''} onChange={e=>onUpdate(r.id,'startDate',e.target.value)}/></td>
+                        <td><InlineDatePicker value={r.startDate||''} onSave={v=>onUpdate(r.id,'startDate',v)}/></td>
                         <td><InlineText value={r.memo} onSave={v=>onUpdate(r.id,'memo',v)}/></td>
                       </tr>
                     );
@@ -645,7 +657,7 @@ const OnboardPage = React.memo(function OnboardPage({ data, filter, setFilter, o
                       <td><InlineText value={r.name} onSave={v=>onUpdate(r.id,'name',v)} placeholder="이름"/></td>
                       <td><InlineText value={r.contact} onSave={v=>onUpdate(r.id,'contact',v)} placeholder="연락처"/></td>
                       <td><InlineText value={r.job} onSave={v=>onUpdate(r.id,'job',v)} placeholder="직무"/></td>
-                      <td><input className="inline-input" type="date" value={r.date} onChange={e=>onUpdate(r.id,'date',e.target.value)}/></td>
+                      <td><InlineDatePicker value={r.date} onSave={v=>onUpdate(r.id,'date',v)}/></td>
                       <td><select className="inline-select" value={r.manager} onChange={e=>onUpdate(r.id,'manager',e.target.value)}><option value="">선택</option>{appSettings.managers.map(m=><option key={m}>{m}</option>)}</select></td>
                       <td><select className="inline-select" value={r.status} onChange={e=>onUpdate(r.id,'status',e.target.value)}>{['입사 예정','교육 중','입사 완료','입사 취소'].map(s=><option key={s}>{s}</option>)}</select></td>
                       <td><select className="inline-select" value={r.attendance||''} onChange={e=>onUpdate(r.id,'attendance',e.target.value)}><option value="">-</option><option>참석</option><option>불참</option></select></td>
@@ -736,7 +748,7 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
                       <td><InlineText value={r.job} onSave={v=>onUpdate(r.id,'job',v)} placeholder="직무"/></td>
                       <td><select className="inline-select" value={r.platform} onChange={e=>onUpdate(r.id,'platform',e.target.value)}>{appSettings.proposalPlatforms.map(p=><option key={p}>{p}</option>)}</select></td>
                       <td><select className="inline-select" value={r.manager} onChange={e=>onUpdate(r.id,'manager',e.target.value)}><option value="">선택</option>{appSettings.managers.map(m=><option key={m}>{m}</option>)}</select></td>
-                      <td><input className="inline-input" type="date" value={r.date} onChange={e=>onUpdate(r.id,'date',e.target.value)}/></td>
+                      <td><InlineDatePicker value={r.date} onSave={v=>onUpdate(r.id,'date',v)}/></td>
                       <td><select className="inline-select" value={r.result} onChange={e=>onUpdate(r.id,'result',e.target.value)}>{['대기','수락','거절','면접진행'].map(s=><option key={s}>{s}</option>)}</select></td>
                       <td><InlineText value={r.memo} onSave={v=>onUpdate(r.id,'memo',v)}/></td>
                     </tr>
