@@ -345,6 +345,182 @@ function ChartBox({ type, data, options, onChartClick }) {
 }
 
 /* ═══════════════════════════════════════════
+   PERIOD REPORT MODAL
+═══════════════════════════════════════════ */
+function PeriodReport({ selMonths, fi, fo, fp, fc, appSettings, onClose }) {
+  const pct = (a,b) => b ? Math.round(a/b*100) : 0;
+
+  // 기간 표시
+  const sortedM = [...selMonths].sort();
+  const periodStr = sortedM.length === 0 ? '선택 없음'
+    : sortedM.length === 1 ? fmtMonth(sortedM[0])
+    : `${fmtMonth(sortedM[0])} ~ ${fmtMonth(sortedM[sortedM.length-1])} (${sortedM.length}개월)`;
+
+  // 면접 통계
+  const totalInt = fi.length;
+  const attended = fi.filter(r=>r.attendance==='참석').length;
+  const passed   = fi.filter(r=>r.passed==='합격').length;
+  const failed   = fi.filter(r=>r.passed==='불합격').length;
+  const iNames   = new Set(fi.map(r=>r.name).filter(Boolean));
+  const finalHired = fo.filter(r=>r.name && iNames.has(r.name)).length;
+
+  // 플랫폼별 면접
+  const platCounts = {};
+  appSettings.applicantPlatforms.forEach(p => { platCounts[p]=0; });
+  fi.forEach(r => { if(platCounts[r.platform]!=null) platCounts[r.platform]++; });
+  const platRows = appSettings.applicantPlatforms.filter(k=>platCounts[k]>0);
+
+  // 포지션 제안
+  const ppCounts = {};
+  appSettings.proposalPlatforms.forEach(p => { ppCounts[p]=0; });
+  fp.forEach(r => { if(ppCounts[r.platform]!=null) ppCounts[r.platform]++; });
+  const ppRows = appSettings.proposalPlatforms.filter(k=>ppCounts[k]>0);
+  const responded = fp.filter(r=>r.result==='수락'||r.result==='거절').length;
+  const accepted  = fp.filter(r=>r.result==='수락').length;
+
+  // 채용 비용
+  const totalCost = fc.reduce((s,r)=>s+(Number(r.amount)||0),0);
+  const costPerHire = finalHired>0 ? Math.round(totalCost/finalHired) : 0;
+  const vendorCosts = {};
+  fc.forEach(r=>{ if(r.vendor) vendorCosts[r.vendor]=(vendorCosts[r.vendor]||0)+(Number(r.amount)||0); });
+
+  // 담당자별 면접
+  const mgrMap = {};
+  fi.forEach(r=>{ if(r.manager) mgrMap[r.manager]=(mgrMap[r.manager]||0)+1; });
+
+  const handlePrint = () => {
+    const el = document.getElementById('period-rpt-inner');
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>채용 현황 보고서</title><style>
+      body{font-family:sans-serif;padding:32px;color:#111;font-size:13px}
+      h1{font-size:20px;margin:0 0 4px} h2{font-size:14px;margin:20px 0 8px;border-bottom:2px solid #111;padding-bottom:4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:10px}
+      th{background:#f0f0f0;padding:5px 8px;text-align:left;border:1px solid #ccc;font-size:11px}
+      td{padding:5px 8px;border:1px solid #ccc;font-size:12px}
+      .kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+      .kpi-box{border:1px solid #ccc;border-radius:6px;padding:10px 14px;min-width:120px}
+      .kpi-lbl{font-size:11px;color:#666} .kpi-val{font-size:18px;font-weight:700;margin:2px 0}
+      .total-row{font-weight:700;background:#fffbeb}
+    </style></head><body>${el.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),300);
+  };
+
+  const thS={padding:'6px 8px',textAlign:'left',borderBottom:'1px solid var(--color-divider)',background:'var(--color-surface-offset)',fontWeight:600,fontSize:'var(--text-xs)'};
+  const tdS=(i)=>({padding:'5px 8px',borderBottom:'1px solid var(--color-divider)',background:i%2===0?'transparent':'var(--color-surface-offset)',fontSize:'var(--text-xs)'});
+  const kpiItems=[
+    ['면접자',`${totalInt}명`],['면접 참여',`${attended}명 (${pct(attended,totalInt)}%)`],
+    ['합격',`${passed}명`],['불합격',`${failed}명`],
+    ['최종 입사',`${finalHired}명 (${pct(finalHired,totalInt)}%)`],
+    ['포지션 제안',`${fp.length}건`],['제안 수락',`${accepted}건 (${pct(accepted,fp.length)}%)`],
+    ['총 채용 비용',fmtAmount(totalCost)],['1인당 비용',finalHired>0?fmtAmount(costPerHire):'-'],
+  ];
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,overflowY:'auto',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'24px 16px'}} onClick={onClose}>
+      <div style={{background:'var(--color-surface)',borderRadius:12,padding:28,width:'100%',maxWidth:900}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:'var(--text-lg)'}}>선택 기간 채용 현황 보고서</div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-primary" onClick={handlePrint}>🖨️ 인쇄 / PDF</button>
+            <button className="btn btn-secondary" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div id="period-rpt-inner">
+          <h1 style={{margin:'0 0 4px',fontWeight:700}}>채용 현황 보고서</h1>
+          <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:20}}>기간: {periodStr}</div>
+
+          {/* KPI 요약 */}
+          <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>1. 채용 현황 요약</h2>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
+            {kpiItems.map(([l,v])=>(
+              <div key={l} style={{border:'1px solid var(--color-divider)',borderRadius:6,padding:'10px 14px'}}>
+                <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{l}</div>
+                <div style={{fontSize:'var(--text-base)',fontWeight:700,marginTop:2}}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* 채용 퍼넬 */}
+          <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>2. 채용 퍼넬</h2>
+          <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20}}>
+            <thead><tr>{['단계','인원','전환율'].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+            <tbody>
+              {[['면접자',totalInt,100],['면접 참여',attended,pct(attended,totalInt)],['합격',passed,pct(passed,attended)],['불합격',failed,pct(failed,attended)],['최종 입사',finalHired,pct(finalHired,passed)]].map(([l,v,p],i)=>(
+                <tr key={l}><td style={tdS(i)}>{l}</td><td style={{...tdS(i),textAlign:'right'}}>{v}명</td><td style={{...tdS(i),textAlign:'right'}}>{p}%</td></tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* 플랫폼별 면접 */}
+          {platRows.length>0 && <>
+            <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>3. 플랫폼별 면접 현황</h2>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20}}>
+              <thead><tr>{['플랫폼','면접자','비율'].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+              <tbody>
+                {platRows.map((k,i)=>(
+                  <tr key={k}><td style={tdS(i)}>{k}</td><td style={{...tdS(i),textAlign:'right'}}>{platCounts[k]}명</td><td style={{...tdS(i),textAlign:'right'}}>{pct(platCounts[k],totalInt)}%</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </>}
+
+          {/* 포지션 제안 */}
+          {ppRows.length>0 && <>
+            <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>4. 포지션 제안 현황</h2>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20}}>
+              <thead><tr>{['플랫폼','제안','응답','수락','비율'].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+              <tbody>
+                {ppRows.map((k,i)=>{
+                  const cnt=ppCounts[k];
+                  const r=fp.filter(x=>x.platform===k&&(x.result==='수락'||x.result==='거절')).length;
+                  const a=fp.filter(x=>x.platform===k&&x.result==='수락').length;
+                  return <tr key={k}><td style={tdS(i)}>{k}</td><td style={{...tdS(i),textAlign:'right'}}>{cnt}</td><td style={{...tdS(i),textAlign:'right'}}>{r}</td><td style={{...tdS(i),textAlign:'right'}}>{a}</td><td style={{...tdS(i),textAlign:'right'}}>{pct(a,cnt)}%</td></tr>;
+                })}
+                <tr style={{fontWeight:700}}><td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}>합계</td><td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{fp.length}</td><td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{responded}</td><td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{accepted}</td><td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{pct(accepted,fp.length)}%</td></tr>
+              </tbody>
+            </table>
+          </>}
+
+          {/* 채용 비용 */}
+          {Object.keys(vendorCosts).length>0 && <>
+            <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>5. 채용 비용 현황</h2>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20}}>
+              <thead><tr>{['플랫폼','금액','비율'].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+              <tbody>
+                {Object.entries(vendorCosts).sort((a,b)=>b[1]-a[1]).map(([v,amt],i)=>(
+                  <tr key={v}><td style={tdS(i)}>{v}</td><td style={{...tdS(i),textAlign:'right'}}>{fmtAmount(amt)}</td><td style={{...tdS(i),textAlign:'right'}}>{pct(amt,totalCost)}%</td></tr>
+                ))}
+                <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
+                  <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}>합계</td>
+                  <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{fmtAmount(totalCost)}</td>
+                  <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>100%</td>
+                </tr>
+              </tbody>
+            </table>
+            {finalHired>0 && <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',textAlign:'right',marginTop:-12,marginBottom:20}}>1인당 채용 비용: <strong>{fmtAmount(costPerHire)}</strong></div>}
+          </>}
+
+          {/* 담당자별 */}
+          {Object.keys(mgrMap).length>0 && <>
+            <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>6. 담당자별 면접 현황</h2>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead><tr>{['담당자','면접자','비율'].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+              <tbody>
+                {Object.entries(mgrMap).sort((a,b)=>b[1]-a[1]).map(([m,cnt],i)=>(
+                  <tr key={m}><td style={tdS(i)}>{m}</td><td style={{...tdS(i),textAlign:'right'}}>{cnt}명</td><td style={{...tdS(i),textAlign:'right'}}>{pct(cnt,totalInt)}%</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    DASHBOARD PAGE
 ═══════════════════════════════════════════ */
 const ALL_MONTHS = generateMonths();
@@ -359,6 +535,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
   const [deptFilter, setDeptFilter] = useState('전체');
   // 월 필터
   const [selMonths, setSelMonths] = useState(() => new Set(ALL_MONTHS));
+  const [showPeriodReport, setShowPeriodReport] = useState(false);
   const toggleMonth = m => setSelMonths(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
   const toggleAll = () => setSelMonths(p => p.size===ALL_MONTHS.length ? new Set() : new Set(ALL_MONTHS));
 
@@ -441,6 +618,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
             {selMonths.size===ALL_MONTHS.length?'전체 해제':'전체 선택'}
           </button>
           <span style={{fontSize:11,color:'var(--color-text-faint)'}}>({selMonths.size}개월 선택)</span>
+          <button className="btn btn-primary" style={{marginLeft:'auto',fontSize:11,padding:'3px 10px'}} onClick={()=>setShowPeriodReport(true)}>📊 선택 기간 보고서</button>
         </div>
         <div className="month-filter-bar">
           {ALL_MONTHS.map(m=>(
@@ -552,6 +730,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
         }
       </div>
 
+      {showPeriodReport && <PeriodReport selMonths={selMonths} fi={fi} fo={fo} fp={fp} fc={fc} appSettings={appSettings} onClose={()=>setShowPeriodReport(false)}/>}
     </div>
   );
 });
@@ -1303,7 +1482,6 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const [expandedId, setExpandedId]   = useState(null);
   const [editingId, setEditingId]     = useState(null);
   const [editForm, setEditForm]       = useState({});
-  const [showReport, setShowReport]   = useState(false);
   const [addingNew, setAddingNew]     = useState(false);
   const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
   const [newForm, setNewForm]         = useState(blankForm);
@@ -1406,7 +1584,6 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         <div><div className="page-title">채용 J/D 관리</div><div className="page-desc">포지션별 JD 및 채용 진행 현황 관리</div></div>
         <div style={{display:'flex',gap:8}}>
           {companyTab !== '보고서 관리' ? <>
-            <button className="btn btn-secondary" onClick={()=>setShowReport(true)}>📊 보고서</button>
             <button className="btn btn-primary" onClick={()=>{ setAddingNew(true); setExpandedId(null); setEditingId(null); }}><Plus size={14}/> 포지션 추가</button>
           </> : <>
             {planDirty && <button className="btn btn-secondary" onClick={saveCostPlan}>💾 저장</button>}
@@ -1564,7 +1741,6 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         </div>
       </>}
 
-      {showReport && <JDReport jds={data} costs={costs} onClose={()=>setShowReport(false)}/>}
       {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} onClose={()=>setShowCostReport(false)}/>}
     </div>
   );
