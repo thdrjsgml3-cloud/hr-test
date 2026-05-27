@@ -572,7 +572,7 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
     setCollapsed(new Set(months.filter(m => m !== latest)));
   }, [data]);
   const toggleM = m => setCollapsed(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
-  const { tbRef: iTbRef, grab: iGrab, init: iW } = useColResize([28,130,120,160,105,100,118,112,110,88,76,72,80,118,120]);
+  const { tbRef: iTbRef, grab: iGrab, init: iW } = useColResize([28,130,120,160,105,100,118,112,170,100,104,88,100,118,140]);
 
   const filtered = useMemo(() =>
     data.filter(r =>
@@ -625,7 +625,7 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
       </div>
       <div className="table-wrap">
         <table ref={iTbRef} className="data-table" >
-          <colgroup>{iW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
+          <colgroup>{iW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','유형','플랫폼','면접일','면접시간','면접관','담당자','참석여부','합격여부','안내여부','입사예정일','비고'].map((h,i)=>(
@@ -722,7 +722,7 @@ const OnboardPage = React.memo(function OnboardPage({ data, filter, setFilter, o
       </div>
       <div className="table-wrap">
         <table ref={oTbRef} className="data-table" >
-          <colgroup>{oW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
+          <colgroup>{oW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','입사예정일','담당자','상태','참석여부','이메일생성','FLEX가입','계약서','비고'].map((h,i)=>(
@@ -811,7 +811,7 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
       </div>
       <div className="table-wrap">
         <table ref={pTbRef} className="data-table" >
-          <colgroup>{pW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
+          <colgroup>{pW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','플랫폼','담당자','제안일','결과','메모'].map((h,i)=>(
@@ -978,7 +978,7 @@ const CostPage = React.memo(function CostPage({ data, onUpdate, onAdd, onShowMen
 
       <div className="table-wrap">
         <table ref={cTbRef} className="data-table" >
-          <colgroup>{cW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
+          <colgroup>{cW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['구분','업체명','분류','금액','구매 내용','비고','결제일','유료 진행기간'].map((h,i)=>(
@@ -1520,9 +1520,9 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
           <div className="table-wrap">
             <table className="data-table">
               <colgroup>
-                <col style={{minWidth:170}}/>
-                {PLAT_KEYS.map(k=><col key={k} style={{minWidth:105}}/>)}
-                <col style={{minWidth:140}}/>
+                <col style={{width:170}}/>
+                {PLAT_KEYS.map(k=><col key={k} style={{width:105}}/>)}
+                <col style={{width:140}}/>
               </colgroup>
               <thead>
                 <tr>
