@@ -1,9 +1,9 @@
-import { createClient } from './supabase';
+import { createAdminClient } from './supabase';
 
 export const VALID_TYPES = ['interviews', 'onboards', 'proposals', 'costs'];
 
 export async function getData(type) {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('hr_data')
     .select('data')
@@ -13,7 +13,7 @@ export async function getData(type) {
 }
 
 export async function setData(type, rows) {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from('hr_data')
     .update({ data: rows })
