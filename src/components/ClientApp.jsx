@@ -1073,6 +1073,116 @@ function JDReport({ jds, costs, onClose }) {
 }
 
 /* ═══════════════════════════════════════════
+   COST PLAN REPORT MODAL
+═══════════════════════════════════════════ */
+const PLAT_KEYS   = ['saramin','jobkorea','albamon','wanted'];
+const PLAT_LABELS = { saramin:'사람인', jobkorea:'잡코리아', albamon:'알바몬', wanted:'원티드' };
+
+function CostPlanReport({ activeJDs, periods, plan, onClose }) {
+  const parseAmt = t => { if(!t||!t.trim()||t.trim()==='-') return 0; const n=Number(t.replace(/[^0-9]/g,'')); return isNaN(n)?0:n; };
+  const totals = {};
+  PLAT_KEYS.forEach(k => { totals[k] = activeJDs.reduce((s,r) => s+parseAmt((plan[r.id]||{})[k]), 0); });
+  const grandTotal = Object.values(totals).reduce((s,v)=>s+v, 0);
+  const colH = k => PLAT_LABELS[k] + (periods[k] ? ` (${periods[k]})` : '');
+
+  const handlePrint = () => {
+    const el = document.getElementById('cost-plan-rpt-inner');
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>채용 예상 비용 보고서</title><style>
+      body{font-family:sans-serif;padding:32px;color:#111;font-size:13px}
+      h1{font-size:20px;margin:0 0 4px} h2{font-size:14px;margin:20px 0 8px;border-bottom:2px solid #111;padding-bottom:4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:10px}
+      th{background:#f0f0f0;padding:5px 8px;text-align:left;border:1px solid #ccc;font-size:11px}
+      td{padding:5px 8px;border:1px solid #ccc;font-size:12px}
+      .total-row{background:#fffbeb;font-weight:700} .sum-row{background:#f0fdf4;font-weight:700}
+    </style></head><body>${el.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const thS = { padding:'6px 8px', textAlign:'left', borderBottom:'1px solid var(--color-divider)', background:'var(--color-surface-offset)', fontWeight:600 };
+  const tdS = (i) => ({ padding:'5px 8px', borderBottom:'1px solid var(--color-divider)', background: i%2===0?'transparent':'var(--color-surface-offset)' });
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,overflowY:'auto',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'24px 16px'}} onClick={onClose}>
+      <div style={{background:'var(--color-surface)',borderRadius:12,padding:28,width:'100%',maxWidth:900}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:'var(--text-lg)'}}>채용 예상 비용 보고서</div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-primary" onClick={handlePrint}>🖨️ 인쇄 / PDF</button>
+            <button className="btn btn-secondary" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div id="cost-plan-rpt-inner">
+          <h1 style={{margin:'0 0 4px',fontWeight:700}}>채용 예상 비용 보고서</h1>
+          <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:20}}>
+            진행중 포지션 {activeJDs.length}개 · 총 예상 비용 {fmtAmount(grandTotal)}
+          </div>
+
+          <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>1. 포지션별 예상 채용 비용</h2>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-xs)',minWidth:600}}>
+              <thead>
+                <tr>
+                  <th style={thS}>채용모집군</th>
+                  {PLAT_KEYS.map(k=><th key={k} style={{...thS,textAlign:'right'}}>{colH(k)}</th>)}
+                  <th style={thS}>비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeJDs.map((r,i)=>(
+                  <tr key={r.id}>
+                    <td style={{...tdS(i),fontWeight:500}}>{r.position}</td>
+                    {PLAT_KEYS.map(k=><td key={k} style={{...tdS(i),textAlign:'right'}}>{(plan[r.id]||{})[k]||'-'}</td>)}
+                    <td style={tdS(i)}>{(plan[r.id]||{}).note||'-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{fontWeight:600,background:'var(--color-surface-offset)'}}>
+                  <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}>예상 비용 소계</td>
+                  {PLAT_KEYS.map(k=><td key={k} style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{totals[k]>0?fmtAmount(totals[k]):'-'}</td>)}
+                  <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}/>
+                </tr>
+                <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
+                  <td style={{padding:'7px 8px'}}>총 예상 비용</td>
+                  <td colSpan={PLAT_KEYS.length} style={{padding:'7px 8px',textAlign:'right',fontSize:'var(--text-sm)'}}>{fmtAmount(grandTotal)}</td>
+                  <td style={{padding:'7px 8px'}}/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <h2 style={{fontWeight:700,fontSize:'var(--text-sm)',margin:'24px 0 10px',paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>2. 예상 채용 비용 현황</h2>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-xs)'}}>
+            <thead><tr>
+              <th style={thS}>플랫폼</th>
+              <th style={{...thS,textAlign:'right'}}>예상 비용</th>
+              <th style={{...thS,textAlign:'right'}}>비율</th>
+            </tr></thead>
+            <tbody>
+              {PLAT_KEYS.filter(k=>totals[k]>0).sort((a,b)=>totals[b]-totals[a]).map((k,i)=>(
+                <tr key={k}>
+                  <td style={tdS(i)}>{PLAT_LABELS[k]}</td>
+                  <td style={{...tdS(i),textAlign:'right'}}>{fmtAmount(totals[k])}</td>
+                  <td style={{...tdS(i),textAlign:'right'}}>{grandTotal>0?Math.round(totals[k]/grandTotal*100):0}%</td>
+                </tr>
+              ))}
+              <tr style={{fontWeight:700}}>
+                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)'}}>합계</td>
+                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>{fmtAmount(grandTotal)}</td>
+                <td style={{padding:'6px 8px',borderTop:'2px solid var(--color-divider)',textAlign:'right'}}>100%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    J/D PAGE
 ═══════════════════════════════════════════ */
 const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
@@ -1085,6 +1195,37 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const [addingNew, setAddingNew]     = useState(false);
   const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
   const [newForm, setNewForm]         = useState(blankForm);
+
+  // 보고서 관리 탭 상태
+  const [periods, setPeriods]       = useState(() => { try { return JSON.parse(localStorage.getItem('jdPeriods'))||{}; } catch { return {}; } });
+  const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',note:'',...(r.costPlan||{})}; }); return p; });
+  const [showCostReport, setShowCostReport] = useState(false);
+  const [planDirty, setPlanDirty]   = useState(false);
+
+  useEffect(() => {
+    setLocalPlan(prev => {
+      const p={...prev};
+      data.forEach(r=>{ if(!p[r.id]) p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',note:'',...(r.costPlan||{})}; });
+      return p;
+    });
+  }, [data]);
+
+  const parseAmt = t => { if(!t||!t.trim()||t.trim()==='-') return 0; const n=Number(t.replace(/[^0-9]/g,'')); return isNaN(n)?0:n; };
+  const activeJDs = data.filter(r => r.status==='진행중');
+  const planTotals = {};
+  PLAT_KEYS.forEach(k=>{ planTotals[k]=activeJDs.reduce((s,r)=>s+parseAmt((localPlan[r.id]||{})[k]),0); });
+  const planGrandTotal = Object.values(planTotals).reduce((s,v)=>s+v,0);
+
+  const updateLocalPlan = (id, field, value) => {
+    setLocalPlan(prev=>({...prev,[id]:{...(prev[id]||{}),[field]:value}}));
+    setPlanDirty(true);
+  };
+  const saveCostPlan = () => {
+    const updated = data.map(r=>({...r, costPlan: localPlan[r.id]||r.costPlan||{}}));
+    onSaveAll(updated);
+    localStorage.setItem('jdPeriods', JSON.stringify(periods));
+    setPlanDirty(false);
+  };
 
   const filtered = useMemo(() => {
     let rows = data;
@@ -1147,81 +1288,167 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
       <div className="page-header">
         <div><div className="page-title">채용 J/D 관리</div><div className="page-desc">포지션별 JD 및 채용 진행 현황 관리</div></div>
         <div style={{display:'flex',gap:8}}>
-          <button className="btn btn-secondary" onClick={()=>setShowReport(true)}>📊 보고서</button>
-          <button className="btn btn-primary" onClick={()=>{ setAddingNew(true); setExpandedId(null); setEditingId(null); }}><Plus size={14}/> 포지션 추가</button>
+          {companyTab !== '보고서 관리' ? <>
+            <button className="btn btn-secondary" onClick={()=>setShowReport(true)}>📊 보고서</button>
+            <button className="btn btn-primary" onClick={()=>{ setAddingNew(true); setExpandedId(null); setEditingId(null); }}><Plus size={14}/> 포지션 추가</button>
+          </> : <>
+            {planDirty && <button className="btn btn-secondary" onClick={saveCostPlan}>💾 저장</button>}
+            <button className="btn btn-primary" onClick={()=>setShowCostReport(true)}>📊 보고서</button>
+          </>}
         </div>
       </div>
 
       <div className="tabs">
-        {['전체',...JD_COMPANIES].map(c=>(
+        {['전체',...JD_COMPANIES,'보고서 관리'].map(c=>(
           <button key={c} className={`tab-btn ${companyTab===c?'active':''}`} onClick={()=>setCompanyTab(c)}>{c}</button>
         ))}
       </div>
 
-      <div className="table-toolbar">
-        <span className="filter-label">상태</span>
-        <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-          <option>전체</option><option>진행중</option><option>마감</option>
-        </select>
-        <span style={{marginLeft:'auto',fontSize:'var(--text-sm)',color:'var(--color-text-muted)'}}>
-          진행중 {data.filter(r=>r.status==='진행중').length}개 · 마감 {data.filter(r=>r.status==='마감').length}개
-        </span>
-      </div>
-
-      {addingNew && (
-        <div className="card" style={{marginBottom:14}}>
-          <div style={{fontWeight:700,marginBottom:10,fontSize:'var(--text-sm)'}}>새 포지션 추가</div>
-          <EditForm form={newForm} setForm={setNewForm} onSave={saveNew} onCancel={()=>setAddingNew(false)} isNew/>
+      {companyTab !== '보고서 관리' ? <>
+        <div className="table-toolbar">
+          <span className="filter-label">상태</span>
+          <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+            <option>전체</option><option>진행중</option><option>마감</option>
+          </select>
+          <span style={{marginLeft:'auto',fontSize:'var(--text-sm)',color:'var(--color-text-muted)'}}>
+            진행중 {data.filter(r=>r.status==='진행중').length}개 · 마감 {data.filter(r=>r.status==='마감').length}개
+          </span>
         </div>
-      )}
 
-      {grouped.length === 0
-        ? <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'40px 0'}}>등록된 포지션이 없습니다</div>
-        : grouped.map(([division, rows]) => (
-          <div key={division} className="card" style={{marginBottom:10,padding:'10px 14px'}}>
-            <div style={{fontWeight:700,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.03em'}}>{division}</div>
-            {rows.map(r => (
-              <div key={r.id} style={{borderTop:'1px solid var(--color-divider)', background: r.status==='마감' ? 'var(--color-surface-offset)' : 'transparent', opacity: r.status==='마감' ? 0.6 : 1, transition:'opacity 0.15s'}}>
-                <div
-                  onClick={()=>{ if(editingId===r.id) return; setExpandedId(expandedId===r.id?null:r.id); }}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'9px 4px',cursor:editingId===r.id?'default':'pointer',userSelect:'none'}}
-                  onMouseEnter={e=>{ if(editingId!==r.id) e.currentTarget.style.background='var(--color-divider)'; }}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-                >
-                  <span style={{fontSize:10,color:'var(--color-text-faint)',width:12,flexShrink:0}}>{editingId!==r.id?(expandedId===r.id?'▼':'▶'):''}</span>
-                  <span style={{flex:1,fontSize:'var(--text-sm)'}}>
-                    {r.team && r.team!=='-' && <span style={{color:'var(--color-text-muted)',marginRight:4}}>{r.team}</span>}
-                    <strong style={{textDecoration: r.status==='마감'?'line-through':'none'}}>{r.position}</strong>
-                  </span>
-                  <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
-                  <span className={`badge ${r.status==='진행중'?'badge-green':'badge-gray'}`}>{r.status}</span>
-                  <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();toggleStatus(r);}}>{r.status==='진행중'?'마감':'재개'}</button>
-                  <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();startEdit(r);}}>편집</button>
+        {addingNew && (
+          <div className="card" style={{marginBottom:14}}>
+            <div style={{fontWeight:700,marginBottom:10,fontSize:'var(--text-sm)'}}>새 포지션 추가</div>
+            <EditForm form={newForm} setForm={setNewForm} onSave={saveNew} onCancel={()=>setAddingNew(false)} isNew/>
+          </div>
+        )}
+
+        {grouped.length === 0
+          ? <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'40px 0'}}>등록된 포지션이 없습니다</div>
+          : grouped.map(([division, rows]) => (
+            <div key={division} className="card" style={{marginBottom:10,padding:'10px 14px'}}>
+              <div style={{fontWeight:700,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.03em'}}>{division}</div>
+              {rows.map(r => (
+                <div key={r.id} style={{borderTop:'1px solid var(--color-divider)', background: r.status==='마감' ? 'var(--color-surface-offset)' : 'transparent', opacity: r.status==='마감' ? 0.6 : 1, transition:'opacity 0.15s'}}>
+                  <div
+                    onClick={()=>{ if(editingId===r.id) return; setExpandedId(expandedId===r.id?null:r.id); }}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'9px 4px',cursor:editingId===r.id?'default':'pointer',userSelect:'none'}}
+                    onMouseEnter={e=>{ if(editingId!==r.id) e.currentTarget.style.background='var(--color-divider)'; }}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <span style={{fontSize:10,color:'var(--color-text-faint)',width:12,flexShrink:0}}>{editingId!==r.id?(expandedId===r.id?'▼':'▶'):''}</span>
+                    <span style={{flex:1,fontSize:'var(--text-sm)'}}>
+                      {r.team && r.team!=='-' && <span style={{color:'var(--color-text-muted)',marginRight:4}}>{r.team}</span>}
+                      <strong style={{textDecoration: r.status==='마감'?'line-through':'none'}}>{r.position}</strong>
+                    </span>
+                    <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
+                    <span className={`badge ${r.status==='진행중'?'badge-green':'badge-gray'}`}>{r.status}</span>
+                    <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();toggleStatus(r);}}>{r.status==='진행중'?'마감':'재개'}</button>
+                    <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();startEdit(r);}}>편집</button>
+                  </div>
+
+                  {expandedId===r.id && editingId!==r.id && (
+                    <div style={{padding:'10px 18px 14px',background:'var(--color-surface-offset)',fontSize:'var(--text-sm)',marginBottom:2}}>
+                      {[['업무',r.duties],['자격요건',r.requirements],['우대사항',r.preferred]].filter(([,v])=>v).map(([label,val])=>(
+                        <div key={label} style={{marginBottom:10}}>
+                          <div style={{fontWeight:700,marginBottom:4}}>{label}</div>
+                          <div style={{whiteSpace:'pre-line',color:'var(--color-text-muted)',lineHeight:1.75}}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {editingId===r.id && (
+                    <div style={{marginBottom:4}}>
+                      <EditForm form={editForm} setForm={setEditForm} onSave={saveEdit} onCancel={()=>setEditingId(null)} onDel={()=>deleteJD(r.id)}/>
+                    </div>
+                  )}
                 </div>
-
-                {expandedId===r.id && editingId!==r.id && (
-                  <div style={{padding:'10px 18px 14px',background:'var(--color-surface-offset)',fontSize:'var(--text-sm)',marginBottom:2}}>
-                    {[['업무',r.duties],['자격요건',r.requirements],['우대사항',r.preferred]].filter(([,v])=>v).map(([label,val])=>(
-                      <div key={label} style={{marginBottom:10}}>
-                        <div style={{fontWeight:700,marginBottom:4}}>{label}</div>
-                        <div style={{whiteSpace:'pre-line',color:'var(--color-text-muted)',lineHeight:1.75}}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {editingId===r.id && (
-                  <div style={{marginBottom:4}}>
-                    <EditForm form={editForm} setForm={setEditForm} onSave={saveEdit} onCancel={()=>setEditingId(null)} onDel={()=>deleteJD(r.id)}/>
-                  </div>
-                )}
+              ))}
+            </div>
+          ))
+        }
+      </> : <>
+        {/* ── 보고서 관리 탭 ── */}
+        <div className="card" style={{marginBottom:12,padding:'12px 16px'}}>
+          <div style={{fontWeight:600,fontSize:'var(--text-sm)',marginBottom:8}}>
+            플랫폼 기간 설정 <span style={{fontWeight:400,fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>— 열 제목에 표시됩니다</span>
+          </div>
+          <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+            {PLAT_KEYS.map(k=>(
+              <div key={k} style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:'var(--text-sm)',color:'var(--color-text-muted)',minWidth:52}}>{PLAT_LABELS[k]}</span>
+                <input className="search-input" style={{width:72}} placeholder="예: 3일"
+                  value={periods[k]||''}
+                  onChange={e=>setPeriods(p=>({...p,[k]:e.target.value}))}
+                  onBlur={()=>{ localStorage.setItem('jdPeriods', JSON.stringify(periods)); }}
+                />
               </div>
             ))}
           </div>
-        ))
-      }
+        </div>
+
+        <div className="card" style={{padding:'12px 16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontWeight:600,fontSize:'var(--text-sm)'}}>
+              진행중 포지션 예상 비용
+              <span style={{fontWeight:400,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginLeft:6}}>{activeJDs.length}개 포지션</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              {planDirty && <button className="btn btn-secondary" style={{fontSize:12}} onClick={saveCostPlan}>💾 저장</button>}
+              <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',alignSelf:'center'}}>
+                총 예상: <strong style={{color:'var(--color-primary)'}}>{fmtAmount(planGrandTotal)}</strong>
+              </span>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table" style={{tableLayout:'fixed',minWidth:700}}>
+              <colgroup>
+                <col style={{width:190}}/>
+                {PLAT_KEYS.map(k=><col key={k} style={{width:120}}/>)}
+                <col style={{width:160}}/>
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>채용모집군</th>
+                  {PLAT_KEYS.map(k=><th key={k}>{PLAT_LABELS[k]}{periods[k]?` (${periods[k]})`:''}</th>)}
+                  <th>비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeJDs.length === 0
+                  ? <tr><td colSpan={6} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'24px 0'}}>진행중인 포지션이 없습니다</td></tr>
+                  : activeJDs.map(r=>(
+                    <tr key={r.id}>
+                      <td style={{fontWeight:500,fontSize:'var(--text-sm)'}}>{r.position}</td>
+                      {PLAT_KEYS.map(k=>(
+                        <td key={k}>
+                          <InlineText value={(localPlan[r.id]||{})[k]||''} onSave={v=>updateLocalPlan(r.id,k,v)} placeholder="-"/>
+                        </td>
+                      ))}
+                      <td><InlineText value={(localPlan[r.id]||{}).note||''} onSave={v=>updateLocalPlan(r.id,'note',v)} placeholder="-"/></td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+              {activeJDs.length > 0 && <tfoot>
+                <tr style={{fontWeight:600,background:'var(--color-surface-offset)'}}>
+                  <td style={{fontSize:'var(--text-xs)'}}>예상 비용 소계</td>
+                  {PLAT_KEYS.map(k=><td key={k} style={{textAlign:'right',fontSize:'var(--text-xs)'}}>{planTotals[k]>0?fmtAmount(planTotals[k]):'-'}</td>)}
+                  <td/>
+                </tr>
+                <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
+                  <td>총 예상 비용</td>
+                  <td colSpan={PLAT_KEYS.length} style={{textAlign:'right'}}>{fmtAmount(planGrandTotal)}</td>
+                  <td/>
+                </tr>
+              </tfoot>}
+            </table>
+          </div>
+        </div>
+      </>}
 
       {showReport && <JDReport jds={data} costs={costs} onClose={()=>setShowReport(false)}/>}
+      {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} onClose={()=>setShowCostReport(false)}/>}
     </div>
   );
 });
