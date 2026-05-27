@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { Chart, registerables } from 'chart.js';
-import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
-import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync } from '@/lib/sheets';
+import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs } from '@/lib/sheets';
 
 Chart.register(...registerables);
 
@@ -46,6 +46,107 @@ const DEFAULT_APP_SETTINGS = {
   costVendors: ['사람인', '잡코리아', '원티드', '리멤버', '알바몬', '기타'],
   costNotes: ['퍼플페퍼', '땡큐'],
 };
+
+const JD_COMPANIES = ['본사', 'PZPZ', '교도리', '그랑디르', '광고영업'];
+
+const DEFAULT_JDS = [
+  { id:1,  company:'본사', division:'경영관리본부', team:'인사팀',     position:'공인노무사',            experienceLevel:'2년 이상',    status:'진행중',
+    duties:'• 노동정책 변화에 따른 전략 수립 및 실행\n• 노동청, 노동위원회 등 진정사건/노동분쟁 대응 및 대관업무\n• 전사 노무 리스크 검토\n• 사내 노무 자문 및 기타 노무 이슈 대응\n• 4대보험 취득/상실 및 관리',
+    requirements:'• 공인노무사 자격 보유하신 분\n• 유관 경력 2년이상 보유하신 분(노무법인, 법무법인, 기업체 등)',
+    preferred:'• 인사노무 이슈 관련 문제 해결능력을 보유하신 분\n• 원만한 커뮤니케이션 능력을 보유하신 분\n• 기업 인사노무관리 전반에 대한 지식, 경험을 보유하신 분' },
+  { id:2,  company:'본사', division:'경영관리본부', team:'재무회계팀',  position:'재무회계 담당자',        experienceLevel:'7년 이상',    status:'진행중',
+    duties:'• 결산 총괄 및 재무보고 (월간, 분기, 연간 결산)\n• 재무제표 및 결산보고서 작성(K-GAAP)\n• 외부회계감사 대응\n• TAX - 부가가치세 신고 검토, 법인세 신고 및 세무조정\n• 자금 관리 - 일일 자금현황, 단기 자금계획\n• 지급 결의 승인 프로세스 운영\n• ERP 시스템 운영\n• 주니어 담당자 멘토링',
+    requirements:'• 기업 재무/회계팀 실무 경력 7년 이상 (외부회계 감사 대응 경험 5회 이상)\n• K-GAAP 및 K-IFRS 기준 결산 업무 직접 수행 경험 (동일 기업 3년 이상)\n• 법인세 신고 업무 수행 경험\n• 능숙한 ERP 및 회계프로그램 사용 능력',
+    preferred:'• 높은 수준의 수치 분석력 및 세밀함\n• 복잡한 회계 이슈에 대한 독립적 판단 및 문제해결 능력\n• 회사 내·외 이해관계자와의 원활한 커뮤니케이션 능력\n• 주니어 구성원에 대한 코칭 및 리더십 마인드' },
+  { id:3,  company:'본사', division:'콘텐츠본부',   team:'마케팅팀',    position:'중화권 마케터',          experienceLevel:'경력 무관',   status:'진행중',
+    duties:'• 중화권 시장 대상 디지털 마케팅 전략 수립 및 실행\n• 샤오홍슈, 도우인, 웨이보 등 중화권 SNS 채널 운영\n• 메이투안, 디엔핑 등 플랫폼 기반 마케팅 기획 및 관리\n• 중화권 인플루언서 및 MCN 협업 및 시딩 캠페인 운영\n• 중화권 현지 마케팅 에이전시 및 파트너사 커뮤니케이션',
+    requirements:'• 중국어&한국어 커뮤니케이션 가능 (비즈니스 수준)\n• 중화권 SNS 및 디지털 플랫폼에 대한 이해\n• 인플루언서 마케팅 또는 디지털 마케팅 경험\n• 해외 시장 마케팅 또는 글로벌 마케팅 업무 경험',
+    preferred:'• 샤오홍슈/도우인/웨이보 마케팅 운영 경험\n• 중국 또는 중화권 지역 거주 경험 또는 현지 네트워크\n• 중화권 인플루언서 및 MCN 협업 경험\n• 관광/뷰티/라이프스타일 산업 마케팅 경험' },
+  { id:4,  company:'본사', division:'콘텐츠본부',   team:'마케팅팀',    position:'일본 마케터',            experienceLevel:'경력 무관',   status:'진행중',
+    duties:'• 일본 시장 대상 디지털 마케팅 전략 수립 및 실행\n• 인스타그램, X(구 트위터), 유튜브 등 일본 SNS 채널 운영\n• 일본 인플루언서 협업 및 시딩 캠페인 운영\n• 일본 관광객 대상 콘텐츠 기획 및 마케팅 캠페인 실행\n• 일본 현지 마케팅 에이전시 및 파트너사 커뮤니케이션',
+    requirements:'• 일본어 커뮤니케이션 가능 (비즈니스 수준)\n• 일본 SNS 및 디지털 플랫폼에 대한 이해\n• 인플루언서 마케팅 또는 디지털 마케팅 경험\n• 글로벌 마케팅 또는 해외 마케팅 경험',
+    preferred:'• 일본 거주 경험 또는 일본 시장 마케팅 경험\n• 일본 인플루언서 및 크리에이터 네트워크\n• 일본 관광객 대상 마케팅 경험\n• 일본 플랫폼 기반 콘텐츠 마케팅 경험' },
+  { id:5,  company:'본사', division:'콘텐츠본부',   team:'마케팅팀',    position:'영미권 마케터',          experienceLevel:'경력 무관',   status:'진행중',
+    duties:'• 북미 및 영미권 시장 대상 디지털 마케팅 전략 수립 및 실행\n• 인스타그램, 틱톡, 유튜브 등 글로벌 SNS 채널 운영\n• 글로벌 인플루언서 협업 및 시딩 캠페인 운영\n• 영미권 타겟 콘텐츠 기획 및 마케팅 캠페인 실행',
+    requirements:'• 영어 커뮤니케이션 가능 (비즈니스 수준)\n• 글로벌 SNS 및 디지털 플랫폼에 대한 이해\n• 인플루언서 마케팅 또는 디지털 마케팅 경험\n• 글로벌 마케팅 캠페인 운영 경험',
+    preferred:'• 해외 거주 경험 또는 영미권 시장 마케팅 경험\n• 글로벌 인플루언서 협업 경험\n• 콘텐츠 마케팅 및 퍼포먼스 마케팅 경험\n• 관광/라이프스타일/뷰티 산업 마케팅 경험' },
+  { id:6,  company:'본사', division:'콘텐츠본부',   team:'마케팅팀',    position:'동남아시아 마케터',      experienceLevel:'경력 무관',   status:'진행중',
+    duties:'• 동남아시아 시장 대상 디지털 마케팅 전략 수립 및 실행\n• 틱톡, 인스타그램, 페이스북 등 SNS 채널 운영\n• 동남아시아 인플루언서 협업 및 시딩 캠페인 운영\n• 동남아 관광객 대상 콘텐츠 기획 및 마케팅 실행',
+    requirements:'• 영어 커뮤니케이션 가능\n• 동남아 SNS 및 디지털 플랫폼 이해\n• 인플루언서 마케팅 또는 디지털 마케팅 경험\n• 글로벌 마케팅 또는 해외 마케팅 경험',
+    preferred:'• 동남아시아 거주 경험 또는 시장 이해도\n• 현지 인플루언서 및 MCN 네트워크\n• 틱톡 기반 마케팅 경험\n• 관광/라이프스타일/뷰티 산업 마케팅 경험' },
+  { id:7,  company:'본사', division:'콘텐츠본부',   team:'광고기획팀',  position:'콘텐츠 마케팅',          experienceLevel:'3년 이상',    status:'진행중',
+    duties:'• 온라인 광고 콘텐츠 기획 및 제작\n• 클라이언트 및 내부 커뮤니케이션\n• 콘텐츠 매체 성과 분석 및 관리 (페이스북, 구글, GA4 등)\n• 제안 문서 및 보고서 작성',
+    requirements:'• 관련 경력 3년 이상\n• SNS 채널 운영 경험\n• 트렌드에 민감하고 미디어 리터러시 역량 보유\n• 유튜브, 인스타그램 등 온라인 콘텐츠 이해도가 높은 분\n• MS Office 활용 가능',
+    preferred:'• 유명 SNS 채널 혹은 유튜브 운영 경험, 음원/영화/드라마 등 경험\n• 데이터 분석 경험\n• 카피라이팅 능력 우수\n• 포토샵, 피그마 등 디자인 툴 활용 가능' },
+  { id:8,  company:'본사', division:'콘텐츠본부',   team:'광고기획팀',  position:'바이럴 마케팅',          experienceLevel:'1년 이상',    status:'진행중',
+    duties:'• 자사 및 클라이언트 브랜드의 바이럴 마케팅 전략 기획 및 실행\n• 맘카페, 지역·취미 카페, 각종 온라인 커뮤니티 침투형 바이럴 캠페인 운영\n• 게시글·댓글·후기·이슈/밈형 콘텐츠 기획 및 카피라이팅\n• 인플루언서·콘텐츠 마케터·퍼포먼스 마케터와의 협업\n• 바이럴 캠페인 성과 분석 및 인사이트 도출',
+    requirements:'• 관련 경력 1년 이상\n• 온라인 마케팅/커뮤니티 운영 경험\n• 네이버 카페, 맘카페, 취미/덕질 커뮤니티에 대한 이해도 및 실제 이용 경험\n• 자연스러운 톤으로 설득하는 카피라이팅 역량\n• 트렌드 이슈, 밈, 유머 코드에 관심이 많은 분',
+    preferred:'• 음원/영화/드라마 등 경험\n• 카페 침투, 커뮤니티 침투, 체험단 운영, 바이럴 대행사 근무 경험\n• 인플루언서 마케팅, SNS 채널 운영 경험\n• F&B 및 라이프스타일 분야 관심' },
+  { id:9,  company:'본사', division:'콘텐츠본부',   team:'광고기획팀',  position:'광고기획/AE',            experienceLevel:'리더, 8년 이상', status:'진행중',
+    duties:'• 마케팅 대행 조직 리드\n• 클라이언트 커뮤니케이션, 프로젝트 리드\n• 디지털 캠페인 전략 수립·기획·관리\n• 퍼포먼스 캠페인 전략 수립·기획·관리\n• 인플루언서 마케팅 기획·운영\n• 캠페인 성과 분석·개선\n• 제안서 작성, 경쟁 PT 참여\n• 이슈 및 리스크 관리',
+    requirements:'• 8년 이상의 유관 경력\n• DA, SA, 퍼포먼스 전략 수립 경험\n• SNS 마케팅, 인플루언서 마케팅 경험\n• 제안서, 기획서 등 문서 작성 능력\n• 조직 관리 경험',
+    preferred:'• 광고대행사 출신 우대\n• 앱·게임·커머스 등 다양한 카테고리 경험\n• MCN·인플루언서 협업 경험\n• AI 도구 활용 능력 우수' },
+  { id:10, company:'본사', division:'콘텐츠본부',   team:'광고기획팀',  position:'퍼포먼스 마케팅',        experienceLevel:'6년 이상',    status:'진행중',
+    duties:'• 마케팅 대행 조직 리드\n• 클라이언트 커뮤니케이션, 프로젝트 리드\n• 디지털/퍼포먼스 캠페인 전략 수립·기획·관리\n• 인플루언서 마케팅 기획·운영\n• 캠페인 성과 분석·개선\n• 제안서 작성, 경쟁 PT 참여',
+    requirements:'• 6년 이상의 유관 경력\n• 주도적이며 능동적인 캠페인 운영 경험\n• DA, SA, 퍼포먼스 전략 수립 경험\n• 제안서, 기획서 등 문서 작성 능력',
+    preferred:'• 광고대행사·퍼포먼스 대행사 출신 우대\n• 앱·게임·커머스 등 다양한 카테고리 경험\n• 미디어렙, 매체사, 플랫폼 커뮤니케이션 경험\n• AI 도구 활용 능력 우수' },
+  { id:11, company:'본사', division:'콘텐츠본부',   team:'광고기획팀',  position:'광고 디자인',            experienceLevel:'6년 이상',    status:'진행중',
+    duties:'• 마케팅 대행 조직 내 광고 소재 제작\n• DA 크리에이티브 기획·제작\n• 퍼포먼스 광고 소재 기획·제작\n• 소재 성과 데이터에 기반한 최적화\n• 캠페인 키비주얼 기획·제작\n• 신규 광고 포맷 및 트렌드 리서치',
+    requirements:'• 6년 이상의 유관 경력\n• 포토샵, 일러스트레이터 활용 능력\n• 디지털 광고 환경에 대한 이해\n• DA·퍼포먼스 소재 제작 경험',
+    preferred:'• 광고대행사·퍼포먼스 대행사 출신 우대\n• 앱·게임·커머스 등 다양한 카테고리 경험\n• 유튜브/SNS 콘텐츠 기획 경험\n• AI 도구 활용 능력 우수\n• 피그마 활용 능력 우수' },
+  { id:12, company:'본사', division:'콘텐츠본부',   team:'영상팀',      position:'영상팀 총괄',            experienceLevel:'10년 이상',   status:'진행중',
+    duties:'• 영상팀(숏폼 PD, 편집자, 작가 등) 총괄 및 리딩\n• 브랜드 중심 롱폼·숏폼 콘셉트 기획 및 콘텐츠 전략 수립\n• 인플루언서·연예인, 브랜드 모델 등 외부 파트너 출연 콘텐츠 기획 및 연출\n• 영상 톤앤매너 및 퀄리티 컨트롤, 사내외 프로덕션 협업 관리\n• 팀 내 제작 프로세스 개선 및 신규 포맷 개발 리딩',
+    requirements:'• 관련 업계 경력 10년 이상\n• 프로덕션/방송사/유명 제작사 출신으로 실무 및 관리 경험이 풍부한 분\n• 영상 콘셉트 개발부터 기획서 제작, 촬영, 편집까지 전체 프로세스 이해도\n• 팀 단위 프로젝트 리딩 경험 (PD, 에디터, 작가로 구성된 제작팀 운영)\n• 포트폴리오 제출 필수 (본인 역할 명시 필수)',
+    preferred:'• 유명 SNS 채널 혹은 유튜브 운영 경험, 음원/영화/드라마 등 경험\n• 브랜디드 콘텐츠, F&B, 인플루언서 협업 콘텐츠 제작 경험\n• 유튜브, 틱톡, 인스타그램 등 숏폼 플랫폼에 대한 높은 이해도\n• 카메라·조명 세팅 등 현장 연출 및 테크니컬 이해도' },
+  { id:13, company:'본사', division:'콘텐츠본부',   team:'영상팀',      position:'인플루언서/연예인 PD',   experienceLevel:'3년 이상',    status:'진행중',
+    duties:'• 인플루언서·연예인과 협업한 콘텐츠(롱폼·숏폼) 기획, 촬영, 편집 전반\n• 브랜드가 등장하는 롱폼 영상에서 숏폼화 가능한 구간 선별 및 스크립트 기획\n• 주목도를 높이는 오프닝 문장 및 후킹 포인트 기획\n• F&B 및 브랜드 홍보 주제의 숏폼 콘텐츠 제작 (릴스, 틱톡 등)\n• 편집자, 마케터 등 내부 협업을 통한 콘텐츠 제작 및 채널 운영 관리',
+    requirements:'• 관련 업계 경력 3년 이상\n• 영상 포트폴리오(참여 역할 및 기여 부분 명시) 필수 제출\n• 콘텐츠 기획, 촬영, 편집 모두 수행 가능한 분\n• 인플루언서 또는 연예인 관련 콘텐츠 제작 경험',
+    preferred:'• 음원/영화/드라마 등 경험\n• 포토샵·일러스트 등 디자인 툴 활용 가능\n• 영어 또는 제2외국어 활용 가능\n• 카메라, 조명 등 현장 촬영 장비 운용 가능\n• SNS 채널(유튜브, 인스타그램, 틱톡 등) 기획·운영 경험' },
+  { id:14, company:'본사', division:'콘텐츠본부',   team:'영상팀',      position:'영상편집자',             experienceLevel:'3년 이하',    status:'진행중',
+    duties:'• 숏폼(Shorts) 영상 편집 (광고형/밈형/브랜디드 콘텐츠 등)\n• 브랜드 계정 및 인플루언서 계정 영상 제작\n• 각 분야별 콘텐츠에 맞는 콘셉트 기획 및 편집\n• 트렌드 리서치 및 숏폼 포맷 기획 보조\n• 플랫폼별 규격에 맞춘 영상 최적화 및 업로드용 마스터 파일 제작',
+    requirements:'• 숏폼 플랫폼(인스타, 유튜브, 틱톡) 콘텐츠에 대한 높은 이해도\n• 그래픽 활용 우수, 모션 관련 이해도 높은 분\n• 광고, 밈, 유행 포맷에 빠삭한 감각\n• Premiere Pro, After Effects 등 영상 편집 툴 능숙',
+    preferred:'• 음원/영화/드라마 등 경험\n• 음원·뮤직비디오 편집, 영화 예고편/드라마 하이라이트 편집 경험\n• SNS 채널 운영 및 관리 경험\n• 디자인, 영상, 광고 등 관련 전공' },
+  { id:15, company:'본사', division:'기술본부',     team:'PO팀',        position:'서비스 기획자',          experienceLevel:'4년 이상',    status:'진행중',
+    duties:'• 신규 플랫폼 서비스 기획 및 전략 수립\n• GA4, GTM 기반의 데이터 수집 환경 설계 및 이벤트 택소노미 정의\n• 유저 행동 데이터 분석을 통한 퍼널 최적화 및 이탈률 개선\n• 정성/정량 데이터 기반 서비스 개선 가설 수립 및 검증 (A/B Test)\n• 사용자경험(UX)을 고려한 서비스 설계 및 개선\n• 서비스 개발, 런칭, 운영 로드맵 수립 및 일정 관리\n• Figma를 활용한 와이어프레임 및 프로토타입 제작',
+    requirements:'• IT 서비스 기획 및 운영 분야 경력 6년 이상\n• GA, GTAG 등 데이터 기반 서비스 고도화 역량\n• 서비스 기획부터 출시, 운영까지 End to End 프로젝트 관리 경험\n• 뛰어난 리더십과 커뮤니케이션 역량',
+    preferred:'• 맛집, 문화, 어플, 리워드 관련 서비스 기획 경험\n• 스타트업 또는 신규 서비스 런칭 경험\n• 프로젝트 관리 툴(JIRA, Confluence, Trello, Notion) 활용 가능\n• UI/UX 툴(Figma, Sketch, XD) 사용 경험' },
+  { id:16, company:'본사', division:'기술본부',     team:'기술팀',      position:'백엔드 AI 개발자',       experienceLevel:'3년 이상',    status:'진행중',
+    duties:'• 신규 AI 서비스 개발 및 외부 연동 시스템 설계 및 구축\n• 외부 플랫폼 연동 엔진 설계 및 차단 우회 전략 수립\n• 메시지 큐를 활용한 대용량 데이터 동기화 파이프라인 최적화\n• 정성적 데이터를 기반으로 프롬프트 엔지니어링 및 A/B Test',
+    requirements:'• 백엔드 개발 및 시스템 운영 분야 경력 5년 이상\n• OpenAI API 또는 AI Agent 시스템 연동 경험\n• 외부 사이트 스크래핑 연동 역량\n• 기획부터 출시, 운영까지 End to End 프로젝트 경험',
+    preferred:'• 푸드테크 관련 서비스 개발 및 운영 경험\n• 모노레포(Turborepo) 환경에서의 개발 및 코드 리뷰 경험\n• 프로젝트 관리 툴(Notion, Slack) 활용 가능\n• 커머스 프로젝트 경험' },
+  { id:17, company:'본사', division:'기술본부',     team:'기술팀',      position:'프론트엔드 AI 개발자',   experienceLevel:'3년 이상',    status:'진행중',
+    duties:'• 신규 AI 서비스 및 대시보드 UI/UX 설계 및 구현\n• React Query 기반의 서버 상태 관리 및 대량 데이터 무한 스크롤 최적화\n• Recharts를 활용한 복합 매출 추이 차트 및 인사이트 시각화 구현\n• 기존 모노레포 내 packages/ui 공통 컴포넌트 활용 및 라이브러리 고도화\n• Figma를 활용한 와이어프레임 기반의 반응형 웹 구현',
+    requirements:'• 프론트엔드 개발 경력 3년 이상\n• React·Native 개발 역량\n• Next.js(App Router) 및 TypeScript를 이용한 서비스 고도화 역량\n• 디자인 시스템 가이드 준수 및 컴포넌트 단위 개발 경험\n• 원활한 협업 및 논리적 커뮤니케이션 역량',
+    preferred:'• 스타트업 또는 신규 서비스 런칭 경험\n• 금융, 대시보드, 분석 툴 관련 서비스 기획 및 개발 경험\n• Tailwind CSS 및 모던 UI 프레임워크 활용 능력 우수\n• UI/UX 툴(Figma) 사용 및 디자인 시스템 구축 경험' },
+  { id:18, company:'PZPZ', division:'PZPZ',        team:'-',           position:'피자 파트',             experienceLevel:'1년 이상',    status:'진행중',
+    duties:'• 피자 도우 준비 및 토핑 세팅 등 기본 제조 업무 수행\n• 레시피 및 조리 매뉴얼에 따른 피자 조리 보조\n• 식재료 전처리 및 위생 관리\n• 주방 청결 유지 및 정리정돈\n• 피크타임 조리 지원 및 원활한 서비스 제공',
+    requirements:'• 경력 1년 이상 (신입 지원 가능)\n• 피자 또는 양식 주방 경험자 우대\n• 기본적인 조리 스킬 보유자\n• 매뉴얼에 따른 정확한 업무 수행 가능한 분\n• 팀워크를 중시하며 성실하게 근무 가능한 분',
+    preferred:'' },
+  { id:19, company:'PZPZ', division:'PZPZ',        team:'-',           position:'콜드&핫 파트',          experienceLevel:'1년 이상',    status:'진행중',
+    duties:'• 파트별(콜드/핫) 메뉴 조리 및 준비 업무 수행\n• 식재료 전처리 및 기본 조리 업무\n• 조리 매뉴얼 준수 및 품질 유지\n• 피크타임 조리 지원 및 서비스 속도 유지\n• 주방 청결 관리 및 위생 기준 준수',
+    requirements:'• 경력 1년 이상 (신입 지원 가능)\n• 양식 조리 경험자 우대\n• 기본 조리 기술 및 위생 개념 보유\n• 책임감 있고 협업이 원활한 분',
+    preferred:'' },
+  { id:20, company:'PZPZ', division:'PZPZ',        team:'-',           position:'홀 파트',               experienceLevel:'경력무관',    status:'진행중',
+    duties:'• 고객 응대 및 기본 서비스 제공\n• 주문 접수 및 POS 사용\n• 음식 서빙 및 테이블 세팅·정리\n• 매장 청결 유지\n• 피크타임 현장 지원 및 서비스 품질 유지',
+    requirements:'• 경력 무관 (경험자 우대)\n• 외식업 서비스 경험자 우대\n• 밝고 친절한 서비스 마인드\n• 주말 및 피크타임 근무 가능자',
+    preferred:'' },
+  { id:21, company:'교도리', division:'교도리',     team:'-',           position:'주방 사원',             experienceLevel:'1년 이상',    status:'진행중',
+    duties:'• 매장 운영 전반 학습\n• 메뉴 제조 및 고객 응대\n• 매장 정리 및 청소\n• 오더 정확도 체크 및 매장 청결\n• CS 표준 매뉴얼 준수\n• 개인 위생 준수',
+    requirements:'• 주방/홀 R&R 업무 수행 1년 이상 필수',
+    preferred:'' },
+  { id:22, company:'교도리', division:'교도리',     team:'-',           position:'주방 아르바이트',       experienceLevel:'경력 무관',   status:'진행중',
+    duties:'• 고객응대\n• 간단한 조리 및 서비스 보조\n• 매장 정리 및 청소\n• 담당 시간대 내 서비스 품질 유지\n• 개인 위생 준수',
+    requirements:'• 신입/파트타이머 가능',
+    preferred:'' },
+  { id:23, company:'광고영업', division:'광고영업', team:'-',           position:'광고영업담당',          experienceLevel:'-',           status:'마감',
+    duties:'• 광고 수주 및 제안\n• 신규 광고주 발굴 및 컨택\n• 유선 및 미팅을 통한 광고제안 및 계약 체결\n• 광고주 커뮤니케이션',
+    requirements:'',
+    preferred:'' },
+  { id:24, company:'광고영업', division:'광고영업', team:'-',           position:'TM 아웃바운드',         experienceLevel:'-',           status:'마감',
+    duties:'• 광고 제안 아웃바운드',
+    requirements:'',
+    preferred:'' },
+];
 
 function fmtAmount(n) {
   if (!n) return '0원';
@@ -851,6 +952,281 @@ const CostPage = React.memo(function CostPage({ data, onUpdate, onAdd, onShowMen
 });
 
 /* ═══════════════════════════════════════════
+   J/D REPORT MODAL
+═══════════════════════════════════════════ */
+function JDReport({ jds, costs, onClose }) {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
+  const active = jds.filter(r => r.status === '진행중');
+  const closed  = jds.filter(r => r.status === '마감');
+  const totalCost = costs.reduce((s,r) => s+(Number(r.amount)||0), 0);
+  const vendorCosts = {};
+  costs.forEach(r => { if(r.vendor) vendorCosts[r.vendor] = (vendorCosts[r.vendor]||0)+(Number(r.amount)||0); });
+  const byCompany = {};
+  active.forEach(r => { (byCompany[r.company] = byCompany[r.company]||[]).push(r); });
+
+  const handlePrint = () => {
+    const el = document.getElementById('jd-report-inner');
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>채용 현황 보고서</title><style>
+      body{font-family:sans-serif;padding:32px;color:#111;font-size:13px}
+      h1{font-size:20px;margin:0 0 4px}
+      h2{font-size:14px;margin:20px 0 8px;border-bottom:2px solid #111;padding-bottom:4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:10px}
+      th{background:#f0f0f0;padding:5px 8px;text-align:left;border:1px solid #ccc;font-size:11px}
+      td{padding:5px 8px;border:1px solid #ccc;font-size:12px}
+      .kpi-row{display:flex;gap:12px;margin:12px 0}
+      .kpi{border:1px solid #ddd;border-radius:4px;padding:10px 14px;flex:1}
+      .kpi-l{font-size:11px;color:#666}.kpi-v{font-size:18px;font-weight:700;margin-top:3px}
+    </style></head><body>${el.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const thStyle = { padding:'5px 8px', textAlign:'left', borderBottom:'1px solid var(--color-divider)', fontWeight:600, background:'var(--color-surface-offset)' };
+  const tdStyle = (i) => ({ padding:'5px 8px', borderBottom:'1px solid var(--color-divider)', background: i%2===0?'transparent':'var(--color-surface-offset)' });
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,overflowY:'auto',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'24px 16px'}} onClick={onClose}>
+      <div style={{background:'var(--color-surface)',borderRadius:12,padding:28,width:'100%',maxWidth:820}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:'var(--text-lg)'}}>보고서 미리보기</div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-primary" onClick={handlePrint}>🖨️ 인쇄 / PDF 저장</button>
+            <button className="btn btn-secondary" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div id="jd-report-inner">
+          <h1 style={{margin:'0 0 4px',fontWeight:700}}>채용 현황 보고서</h1>
+          <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:20}}>
+            생성일: {dateStr} &nbsp;|&nbsp; 진행중 {active.length}개 &nbsp;|&nbsp; 마감 {closed.length}개 &nbsp;|&nbsp; 총 채용 비용 {fmtAmount(totalCost)}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:24}}>
+            {[['총 진행중 포지션',`${active.length}개`],['마감 포지션',`${closed.length}개`],['총 채용 비용',fmtAmount(totalCost)],['집행 플랫폼',`${Object.keys(vendorCosts).length}개`]].map(([l,v])=>(
+              <div key={l} className="kpi-card"><div className="kpi-label">{l}</div><div className="kpi-value" style={{fontSize:'var(--text-base)'}}>{v}</div></div>
+            ))}
+          </div>
+
+          <div style={{fontWeight:700,fontSize:'var(--text-sm)',marginBottom:10,paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>1. 채용 진행중 포지션</div>
+          {Object.entries(byCompany).map(([company, rows]) => (
+            <div key={company} style={{marginBottom:14}}>
+              <div style={{fontWeight:600,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:5}}>{company}</div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-xs)'}}>
+                <thead><tr>{['본부/부서','팀','포지션','경력 구분'].map(h=><th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {rows.map((r,i)=>(
+                    <tr key={r.id}>
+                      <td style={tdStyle(i)}>{r.division}</td>
+                      <td style={tdStyle(i)}>{r.team}</td>
+                      <td style={{...tdStyle(i),fontWeight:600}}>{r.position}</td>
+                      <td style={tdStyle(i)}>{r.experienceLevel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+
+          {closed.length > 0 && <>
+            <div style={{fontWeight:700,fontSize:'var(--text-sm)',margin:'20px 0 10px',paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>2. 마감 포지션</div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-xs)',marginBottom:16}}>
+              <thead><tr>{['회사','팀','포지션','경력 구분'].map(h=><th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+              <tbody>
+                {closed.map((r,i)=>(
+                  <tr key={r.id}>
+                    <td style={tdStyle(i)}>{r.company}</td>
+                    <td style={tdStyle(i)}>{r.team}</td>
+                    <td style={{...tdStyle(i),fontWeight:600}}>{r.position}</td>
+                    <td style={tdStyle(i)}>{r.experienceLevel}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>}
+
+          <div style={{fontWeight:700,fontSize:'var(--text-sm)',margin:'20px 0 10px',paddingBottom:4,borderBottom:'2px solid var(--color-divider)'}}>3. 채용 비용 현황</div>
+          {Object.keys(vendorCosts).length > 0 ? (
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-xs)'}}>
+              <thead><tr>{['플랫폼','집행 비용','비율'].map(h=><th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+              <tbody>
+                {Object.entries(vendorCosts).sort((a,b)=>b[1]-a[1]).map(([v,amt],i)=>(
+                  <tr key={v}>
+                    <td style={tdStyle(i)}>{v}</td>
+                    <td style={{...tdStyle(i),textAlign:'right'}}>{fmtAmount(amt)}</td>
+                    <td style={{...tdStyle(i),textAlign:'right'}}>{Math.round(amt/totalCost*100)}%</td>
+                  </tr>
+                ))}
+                <tr style={{fontWeight:700}}>
+                  <td style={{padding:'6px 8px'}}>합계</td>
+                  <td style={{padding:'6px 8px',textAlign:'right'}}>{fmtAmount(totalCost)}</td>
+                  <td style={{padding:'6px 8px',textAlign:'right'}}>100%</td>
+                </tr>
+              </tbody>
+            </table>
+          ) : <div style={{fontSize:'var(--text-sm)',color:'var(--color-text-faint)'}}>채용 비용 탭에서 비용을 입력하면 여기에 표시됩니다.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   J/D PAGE
+═══════════════════════════════════════════ */
+const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
+  const [companyTab, setCompanyTab]   = useState('전체');
+  const [statusFilter, setStatusFilter] = useState('전체');
+  const [expandedId, setExpandedId]   = useState(null);
+  const [editingId, setEditingId]     = useState(null);
+  const [editForm, setEditForm]       = useState({});
+  const [showReport, setShowReport]   = useState(false);
+  const [addingNew, setAddingNew]     = useState(false);
+  const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
+  const [newForm, setNewForm]         = useState(blankForm);
+
+  const filtered = useMemo(() => {
+    let rows = data;
+    if (companyTab !== '전체') rows = rows.filter(r => r.company === companyTab);
+    if (statusFilter !== '전체') rows = rows.filter(r => r.status === statusFilter);
+    return rows;
+  }, [data, companyTab, statusFilter]);
+
+  const grouped = useMemo(() => {
+    const g = {};
+    filtered.forEach(r => { const k = r.division||r.company; (g[k]=g[k]||[]).push(r); });
+    return Object.entries(g);
+  }, [filtered]);
+
+  const toggleStatus = r => onSaveAll(data.map(x => x.id===r.id ? {...x, status: x.status==='진행중'?'마감':'진행중'} : x));
+  const startEdit  = r => { setEditForm({...r}); setEditingId(r.id); setExpandedId(r.id); };
+  const saveEdit   = ()  => { onSaveAll(data.map(x => x.id===editForm.id ? {...editForm} : x)); setEditingId(null); };
+  const deleteJD   = id  => { if(!window.confirm('이 포지션을 삭제하시겠습니까?')) return; onSaveAll(data.filter(x=>x.id!==id)); setEditingId(null); setExpandedId(null); };
+  const saveNew    = ()  => {
+    if(!newForm.position.trim()) { alert('포지션명을 입력해주세요.'); return; }
+    const newId = data.length ? Math.max(...data.map(x=>x.id))+1 : 1;
+    onSaveAll([...data, {...newForm, id:newId}]);
+    setAddingNew(false); setNewForm(blankForm);
+  };
+
+  const taStyle = { width:'100%', resize:'vertical', background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:6, padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--color-text)', fontFamily:'inherit', boxSizing:'border-box', marginTop:4 };
+  const labelStyle = { fontSize:'var(--text-xs)', color:'var(--color-text-muted)', fontWeight:600, display:'block', marginBottom:3 };
+
+  const EditForm = ({ form, setForm, onSave, onCancel, onDel, isNew }) => (
+    <div style={{padding:'14px 16px', background:'var(--color-surface-offset)', borderRadius:6}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:6}}>
+        {[['회사','company', JD_COMPANIES],['본부/부서','division'],['팀','team'],['포지션명','position'],['경력 구분','experienceLevel'],['채용 상태','status',['진행중','마감']]].map(([label,field,opts])=>(
+          <div key={field}>
+            <label style={labelStyle}>{label}</label>
+            {opts
+              ? <select className="filter-select" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}>
+                  {opts.map(o=><option key={o}>{o}</option>)}
+                </select>
+              : <input className="search-input" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
+            }
+          </div>
+        ))}
+      </div>
+      {[['업무','duties',5],['자격요건','requirements',4],['우대사항','preferred',4]].map(([label,field,rows])=>(
+        <div key={field} style={{marginTop:8}}>
+          <label style={labelStyle}>{label}</label>
+          <textarea rows={rows} style={taStyle} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
+        </div>
+      ))}
+      <div style={{display:'flex',gap:8,marginTop:12}}>
+        <button className="btn btn-primary" onClick={onSave}>저장</button>
+        <button className="btn btn-secondary" onClick={onCancel}>취소</button>
+        {!isNew && <button className="btn btn-secondary" style={{marginLeft:'auto',color:'var(--color-error)'}} onClick={onDel}>삭제</button>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><div className="page-title">채용 J/D 관리</div><div className="page-desc">포지션별 JD 및 채용 진행 현황 관리</div></div>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-secondary" onClick={()=>setShowReport(true)}>📊 보고서</button>
+          <button className="btn btn-primary" onClick={()=>{ setAddingNew(true); setExpandedId(null); setEditingId(null); }}><Plus size={14}/> 포지션 추가</button>
+        </div>
+      </div>
+
+      <div className="tabs">
+        {['전체',...JD_COMPANIES].map(c=>(
+          <button key={c} className={`tab-btn ${companyTab===c?'active':''}`} onClick={()=>setCompanyTab(c)}>{c}</button>
+        ))}
+      </div>
+
+      <div className="table-toolbar">
+        <span className="filter-label">상태</span>
+        <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+          <option>전체</option><option>진행중</option><option>마감</option>
+        </select>
+        <span style={{marginLeft:'auto',fontSize:'var(--text-sm)',color:'var(--color-text-muted)'}}>
+          진행중 {data.filter(r=>r.status==='진행중').length}개 · 마감 {data.filter(r=>r.status==='마감').length}개
+        </span>
+      </div>
+
+      {addingNew && (
+        <div className="card" style={{marginBottom:14}}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:'var(--text-sm)'}}>새 포지션 추가</div>
+          <EditForm form={newForm} setForm={setNewForm} onSave={saveNew} onCancel={()=>setAddingNew(false)} isNew/>
+        </div>
+      )}
+
+      {grouped.length === 0
+        ? <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'40px 0'}}>등록된 포지션이 없습니다</div>
+        : grouped.map(([division, rows]) => (
+          <div key={division} className="card" style={{marginBottom:10,padding:'10px 14px'}}>
+            <div style={{fontWeight:700,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.03em'}}>{division}</div>
+            {rows.map(r => (
+              <div key={r.id} style={{borderTop:'1px solid var(--color-divider)'}}>
+                <div
+                  onClick={()=>{ if(editingId===r.id) return; setExpandedId(expandedId===r.id?null:r.id); }}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'9px 4px',cursor:editingId===r.id?'default':'pointer',userSelect:'none'}}
+                  onMouseEnter={e=>{ if(editingId!==r.id) e.currentTarget.style.background='var(--color-surface-offset)'; }}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                >
+                  <span style={{fontSize:10,color:'var(--color-text-faint)',width:12,flexShrink:0}}>{editingId!==r.id?(expandedId===r.id?'▼':'▶'):''}</span>
+                  <span style={{flex:1,fontSize:'var(--text-sm)'}}>
+                    {r.team && r.team!=='-' && <span style={{color:'var(--color-text-muted)',marginRight:4}}>{r.team}</span>}
+                    <strong>{r.position}</strong>
+                  </span>
+                  <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
+                  <span className={`badge ${r.status==='진행중'?'badge-green':'badge-gray'}`}>{r.status}</span>
+                  <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();toggleStatus(r);}}>{r.status==='진행중'?'마감':'재개'}</button>
+                  <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();startEdit(r);}}>편집</button>
+                </div>
+
+                {expandedId===r.id && editingId!==r.id && (
+                  <div style={{padding:'10px 18px 14px',background:'var(--color-surface-offset)',fontSize:'var(--text-sm)',marginBottom:2}}>
+                    {[['업무',r.duties],['자격요건',r.requirements],['우대사항',r.preferred]].filter(([,v])=>v).map(([label,val])=>(
+                      <div key={label} style={{marginBottom:10}}>
+                        <div style={{fontWeight:700,marginBottom:4}}>{label}</div>
+                        <div style={{whiteSpace:'pre-line',color:'var(--color-text-muted)',lineHeight:1.75}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {editingId===r.id && (
+                  <div style={{marginBottom:4}}>
+                    <EditForm form={editForm} setForm={setEditForm} onSave={saveEdit} onCancel={()=>setEditingId(null)} onDel={()=>deleteJD(r.id)}/>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))
+      }
+
+      {showReport && <JDReport jds={data} costs={costs} onClose={()=>setShowReport(false)}/>}
+    </div>
+  );
+});
+
+/* ═══════════════════════════════════════════
    MAIN APP
 ═══════════════════════════════════════════ */
 export default function ClientApp() {
@@ -858,6 +1234,7 @@ export default function ClientApp() {
   const [onboards, setOnboards] = useState(DEFAULT_ONBOARDS);
   const [proposals, setProposals] = useState(DEFAULT_PROPOSALS);
   const [costs, setCosts] = useState([]);
+  const [jds, setJDs] = useState(DEFAULT_JDS);
   const [page, setPage] = useState('dashboard');
   const [appSettings, setAppSettings] = useState(() => {
     try {
@@ -888,13 +1265,14 @@ export default function ClientApp() {
     let cancelled = false;
     const tryLoad = async (attempt = 0) => {
       try {
-        const { interviews: i, onboards: o, proposals: p, costs: c } = await loadData();
+        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j } = await loadData();
         if (cancelled) return;
         startTransition(() => {
           setInterviews(i);
           setOnboards(o);
           setProposals(p);
           if (c) setCosts(c);
+          if (j && j.length > 0) setJDs(j);
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
@@ -1038,7 +1416,12 @@ export default function ClientApp() {
     apiDelete(apiType, id).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', settings:'설정' };
+  const saveAllJDs = useCallback((rows) => {
+    setJDs(rows);
+    apiSaveAllJDs(rows).catch(console.error);
+  }, []);
+
+  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -1079,6 +1462,7 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='onboard'?'active':''}`} onClick={()=>nav('onboard')}><UserCheck size={16}/> 교육 및 입사자<span className="nav-count">{onboards.length}</span></button>
           <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황<span className="nav-count">{proposals.length}</span></button>
           <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용<span className="nav-count">{costs.length}</span></button>
+          <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리<span className="nav-count">{jds.filter(r=>r.status==='진행중').length}</span></button>
           <div className="nav-divider"/>
           <button className={`nav-item ${page==='settings'?'active':''}`} onClick={()=>nav('settings')}><Settings size={16}/> 설정</button>
         </nav>
@@ -1113,6 +1497,7 @@ export default function ClientApp() {
           {page==='onboard' && <OnboardPage data={onboards} filter={filterO} setFilter={setFilterO} onUpdate={updateOnboard} onAdd={addOnboardRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
+          {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
           {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
         </div>
       </div>

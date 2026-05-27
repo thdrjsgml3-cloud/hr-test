@@ -1,6 +1,6 @@
 import { createAdminClient } from './supabase';
 
-export const VALID_TYPES = ['interviews', 'onboards', 'proposals', 'costs'];
+export const VALID_TYPES = ['interviews', 'onboards', 'proposals', 'costs', 'jds'];
 
 export async function getData(type) {
   const supabase = createAdminClient();

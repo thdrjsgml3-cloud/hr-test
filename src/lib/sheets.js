@@ -7,13 +7,22 @@ async function apiFetch(url, options) {
 }
 
 export async function loadData() {
-  const [interviews, onboards, proposals, costs] = await Promise.all([
+  const [interviews, onboards, proposals, costs, jds] = await Promise.all([
     apiFetch(`${API}/interviews`),
     apiFetch(`${API}/onboards`),
     apiFetch(`${API}/proposals`),
     apiFetch(`${API}/costs`),
+    apiFetch(`${API}/jds`),
   ]);
-  return { interviews, onboards, proposals, costs };
+  return { interviews, onboards, proposals, costs, jds };
+}
+
+export function apiSaveAllJDs(rows) {
+  return apiFetch(`${API}/jds`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rows),
+  });
 }
 
 export function apiUpdate(type, id, fields) {
