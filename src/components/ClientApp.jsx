@@ -302,23 +302,24 @@ function InlineTimePicker({ value, onSave }) {
   );
 }
 
-/* ── 열 너비 드래그 조정 ── */
+/* ── 열 너비 드래그 조정 (table-layout:auto — col width는 최소 너비 힌트) ── */
 function useColResize(init) {
   const tbRef = useRef(null);
   const saved = useRef([...init]);
-  const totalW = () => saved.current.reduce((a,b)=>a+b,0);
-  useEffect(() => { if (tbRef.current) tbRef.current.style.width = totalW()+'px'; }, []);
   const grab = useCallback((idx, e) => {
     e.preventDefault(); e.stopPropagation();
     const x0 = e.clientX, w0 = saved.current[idx];
     const mv = ev => {
-      const w = Math.max(32, w0 + ev.clientX - x0);
+      const w = Math.max(40, w0 + ev.clientX - x0);
       saved.current[idx] = w;
       const table = tbRef.current;
       if (!table) return;
-      const col = table.querySelectorAll('col')[idx];
-      if (col) col.style.width = w + 'px';
-      table.style.width = totalW() + 'px';
+      // th에 직접 min-width + width 적용 (auto layout에서도 열 너비 고정)
+      const ths = table.querySelectorAll('thead th');
+      if (ths[idx]) {
+        ths[idx].style.minWidth = w + 'px';
+        ths[idx].style.width    = w + 'px';
+      }
     };
     const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
     document.addEventListener('mousemove', mv);
@@ -623,8 +624,8 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
         )}
       </div>
       <div className="table-wrap">
-        <table ref={iTbRef} className="data-table" style={{tableLayout:'fixed'}}>
-          <colgroup>{iW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+        <table ref={iTbRef} className="data-table" >
+          <colgroup>{iW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','유형','플랫폼','면접일','면접시간','면접관','담당자','참석여부','합격여부','안내여부','입사예정일','비고'].map((h,i)=>(
@@ -720,8 +721,8 @@ const OnboardPage = React.memo(function OnboardPage({ data, filter, setFilter, o
         <select className="filter-select" value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))}><option value="">전체</option><option>입사 예정</option><option>교육 중</option><option>입사 완료</option><option>입사 취소</option></select>
       </div>
       <div className="table-wrap">
-        <table ref={oTbRef} className="data-table" style={{tableLayout:'fixed'}}>
-          <colgroup>{oW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+        <table ref={oTbRef} className="data-table" >
+          <colgroup>{oW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','입사예정일','담당자','상태','참석여부','이메일생성','FLEX가입','계약서','비고'].map((h,i)=>(
@@ -809,8 +810,8 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
         <select className="filter-select" value={filter.result} onChange={e=>setFilter(f=>({...f,result:e.target.value}))}><option value="">전체</option><option>대기</option><option>응답</option><option>미응답</option><option>거절</option><option>면접진행</option></select>
       </div>
       <div className="table-wrap">
-        <table ref={pTbRef} className="data-table" style={{tableLayout:'fixed'}}>
-          <colgroup>{pW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+        <table ref={pTbRef} className="data-table" >
+          <colgroup>{pW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['이름','연락처','직무','플랫폼','담당자','제안일','결과','메모'].map((h,i)=>(
@@ -976,8 +977,8 @@ const CostPage = React.memo(function CostPage({ data, onUpdate, onAdd, onShowMen
       </div>
 
       <div className="table-wrap">
-        <table ref={cTbRef} className="data-table" style={{tableLayout:'fixed'}}>
-          <colgroup>{cW.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+        <table ref={cTbRef} className="data-table" >
+          <colgroup>{cW.map((w,i)=><col key={i} style={{minWidth:w}}/>)}</colgroup>
           <thead><tr>
             <th/>
             {['구분','업체명','분류','금액','구매 내용','비고','결제일','유료 진행기간'].map((h,i)=>(
@@ -1517,11 +1518,11 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
             </div>
           </div>
           <div className="table-wrap">
-            <table className="data-table" style={{tableLayout:'fixed',minWidth:800}}>
+            <table className="data-table">
               <colgroup>
-                <col style={{width:170}}/>
-                {PLAT_KEYS.map(k=><col key={k} style={{width:105}}/>)}
-                <col style={{width:140}}/>
+                <col style={{minWidth:170}}/>
+                {PLAT_KEYS.map(k=><col key={k} style={{minWidth:105}}/>)}
+                <col style={{minWidth:140}}/>
               </colgroup>
               <thead>
                 <tr>
