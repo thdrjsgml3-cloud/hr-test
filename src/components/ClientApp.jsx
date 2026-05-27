@@ -1181,17 +1181,17 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
           <div key={division} className="card" style={{marginBottom:10,padding:'10px 14px'}}>
             <div style={{fontWeight:700,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.03em'}}>{division}</div>
             {rows.map(r => (
-              <div key={r.id} style={{borderTop:'1px solid var(--color-divider)'}}>
+              <div key={r.id} style={{borderTop:'1px solid var(--color-divider)', background: r.status==='마감' ? 'var(--color-surface-offset)' : 'transparent', opacity: r.status==='마감' ? 0.6 : 1, transition:'opacity 0.15s'}}>
                 <div
                   onClick={()=>{ if(editingId===r.id) return; setExpandedId(expandedId===r.id?null:r.id); }}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'9px 4px',cursor:editingId===r.id?'default':'pointer',userSelect:'none'}}
-                  onMouseEnter={e=>{ if(editingId!==r.id) e.currentTarget.style.background='var(--color-surface-offset)'; }}
+                  onMouseEnter={e=>{ if(editingId!==r.id) e.currentTarget.style.background='var(--color-divider)'; }}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}
                 >
                   <span style={{fontSize:10,color:'var(--color-text-faint)',width:12,flexShrink:0}}>{editingId!==r.id?(expandedId===r.id?'▼':'▶'):''}</span>
                   <span style={{flex:1,fontSize:'var(--text-sm)'}}>
                     {r.team && r.team!=='-' && <span style={{color:'var(--color-text-muted)',marginRight:4}}>{r.team}</span>}
-                    <strong>{r.position}</strong>
+                    <strong style={{textDecoration: r.status==='마감'?'line-through':'none'}}>{r.position}</strong>
                   </span>
                   <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
                   <span className={`badge ${r.status==='진행중'?'badge-green':'badge-gray'}`}>{r.status}</span>
