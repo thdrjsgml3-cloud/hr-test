@@ -202,16 +202,92 @@ function DateInput({ value, onSave }) {
   );
 }
 
-/* ── type="date" / type="time" — blur 시에만 저장 ── */
+/* ── type="date" — 연(4자리)·월(2자리)·일(2자리) 자동 다음 섹션 이동 + blur 시에만 저장 ── */
 function InlineDatePicker({ value, onSave }) {
   const ref = useRef(null);
-  useEffect(() => { if (ref.current && ref.current !== document.activeElement) ref.current.value = value || ''; }, [value]);
-  return <input ref={ref} className="inline-input" type="date" defaultValue={value || ''} onBlur={e => onSave(e.target.value)} />;
+  // st: { sec: 0=연/1=월/2=일, cnt: 현재 섹션에서 입력한 자릿수 }
+  const st = useRef({ sec: 0, cnt: 0 });
+
+  useEffect(() => {
+    if (ref.current && ref.current !== document.activeElement) ref.current.value = value || '';
+  }, [value]);
+
+  const goNext = (el) => {
+    setTimeout(() => {
+      el.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true,
+      }));
+    }, 0);
+  };
+
+  const handleKeyDown = (e) => {
+    const s = st.current;
+    if (e.key >= '0' && e.key <= '9') {
+      s.cnt++;
+      const limit = s.sec === 0 ? 4 : 2; // 연도는 4자리, 월·일은 2자리
+      if (s.cnt >= limit && s.sec < 2) {
+        s.sec++;
+        s.cnt = 0;
+        goNext(e.target);
+      }
+    } else if (e.key === 'ArrowRight') { s.sec = Math.min(s.sec + 1, 2); s.cnt = 0; }
+      else if (e.key === 'ArrowLeft')  { s.sec = Math.max(s.sec - 1, 0); s.cnt = 0; }
+      else if (e.key === 'Backspace' || e.key === 'Delete') { s.cnt = 0; }
+  };
+
+  return (
+    <input
+      ref={ref}
+      className="inline-input"
+      type="date"
+      defaultValue={value || ''}
+      onFocus={() => { st.current = { sec: 0, cnt: 0 }; }}
+      onClick={() => { st.current = { sec: 0, cnt: 0 }; }}
+      onKeyDown={handleKeyDown}
+      onBlur={e => { st.current = { sec: 0, cnt: 0 }; onSave(e.target.value); }}
+    />
+  );
 }
+/* ── type="time" — 시(2자리)·분(2자리) 자동 다음 섹션 이동 + blur 시에만 저장 ── */
 function InlineTimePicker({ value, onSave }) {
   const ref = useRef(null);
-  useEffect(() => { if (ref.current && ref.current !== document.activeElement) ref.current.value = value || ''; }, [value]);
-  return <input ref={ref} className="inline-input" type="time" defaultValue={value || ''} onBlur={e => onSave(e.target.value)} />;
+  const st = useRef({ sec: 0, cnt: 0 });
+
+  useEffect(() => {
+    if (ref.current && ref.current !== document.activeElement) ref.current.value = value || '';
+  }, [value]);
+
+  const handleKeyDown = (e) => {
+    const s = st.current;
+    if (e.key >= '0' && e.key <= '9') {
+      s.cnt++;
+      if (s.cnt >= 2 && s.sec < 1) {
+        s.sec++;
+        s.cnt = 0;
+        const el = e.target;
+        setTimeout(() => {
+          el.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true,
+          }));
+        }, 0);
+      }
+    } else if (e.key === 'ArrowRight') { s.sec = 1; s.cnt = 0; }
+      else if (e.key === 'ArrowLeft')  { s.sec = 0; s.cnt = 0; }
+      else if (e.key === 'Backspace' || e.key === 'Delete') { s.cnt = 0; }
+  };
+
+  return (
+    <input
+      ref={ref}
+      className="inline-input"
+      type="time"
+      defaultValue={value || ''}
+      onFocus={() => { st.current = { sec: 0, cnt: 0 }; }}
+      onClick={() => { st.current = { sec: 0, cnt: 0 }; }}
+      onKeyDown={handleKeyDown}
+      onBlur={e => { st.current = { sec: 0, cnt: 0 }; onSave(e.target.value); }}
+    />
+  );
 }
 
 /* ── 열 너비 드래그 조정 ── */
