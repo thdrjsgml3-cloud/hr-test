@@ -127,13 +127,16 @@ function useColResize(init) {
 }
 
 /* ── Chart wrapper ── */
-function ChartBox({ type, data, options }) {
+function ChartBox({ type, data, options, onChartClick }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
   useEffect(() => {
     if (!canvasRef.current) return;
     if (chartRef.current) chartRef.current.destroy();
-    chartRef.current = new Chart(canvasRef.current, { type, data, options });
+    const mergedOptions = onChartClick
+      ? { ...options, onClick: (_, elements) => { if (elements.length > 0) onChartClick(elements[0].index); } }
+      : options;
+    chartRef.current = new Chart(canvasRef.current, { type, data, options: mergedOptions });
     return () => chartRef.current?.destroy();
   });
   return <div className="chart-canvas-wrap"><canvas ref={canvasRef} /></div>;
@@ -144,7 +147,7 @@ function ChartBox({ type, data, options }) {
 ═══════════════════════════════════════════ */
 const ALL_MONTHS = generateMonths();
 
-const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, proposals, costs, sheetStatus, theme, appSettings }) {
+const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, proposals, costs, sheetStatus, theme, appSettings, onNavigate }) {
   const isDark = theme === 'dark';
   const textColor = isDark ? '#888785' : '#6b6b6b';
   const borderColor = isDark ? '#1c1b19' : '#ffffff';
@@ -260,10 +263,10 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
           {empty1
             ? <div style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0',fontSize:'var(--text-sm)'}}>데이터 없음</div>
             : <>
-                <ChartBox type="doughnut" data={{labels:platLabels,datasets:[{data:platLabels.map(k=>platCounts[k]),backgroundColor:CHART_COLORS,borderWidth:2,borderColor}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}}/>
+                <ChartBox type="doughnut" data={{labels:platLabels,datasets:[{data:platLabels.map(k=>platCounts[k]),backgroundColor:CHART_COLORS,borderWidth:2,borderColor}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}} onChartClick={(idx)=>onNavigate('interview',{platform:platLabels[idx]})}/>
                 <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:5}}>
                   {platLabels.map((k,i)=>(
-                    <div key={k} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)'}}>
+                    <div key={k} onClick={()=>onNavigate('interview',{platform:k})} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)',cursor:'pointer',borderRadius:4,padding:'2px 4px',transition:'background 0.15s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-offset)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <div style={{width:10,height:10,borderRadius:'50%',background:CHART_COLORS[i%CHART_COLORS.length],flexShrink:0}}/>
                       <span style={{flex:1}}>{k}</span>
                       <span style={{fontWeight:600}}>{platCounts[k]}건</span>
@@ -282,10 +285,10 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
           {empty2
             ? <div style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0',fontSize:'var(--text-sm)'}}>데이터 없음</div>
             : <>
-                <ChartBox type="doughnut" data={{labels:ppLabels,datasets:[{data:ppLabels.map(k=>ppCounts[k]),backgroundColor:CHART_COLORS,borderWidth:2,borderColor}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}}/>
+                <ChartBox type="doughnut" data={{labels:ppLabels,datasets:[{data:ppLabels.map(k=>ppCounts[k]),backgroundColor:CHART_COLORS,borderWidth:2,borderColor}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}} onChartClick={(idx)=>onNavigate('proposal',{platform:ppLabels[idx]})}/>
                 <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:5}}>
                   {ppLabels.map((k,i)=>(
-                    <div key={k} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)'}}>
+                    <div key={k} onClick={()=>onNavigate('proposal',{platform:k})} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)',cursor:'pointer',borderRadius:4,padding:'2px 4px',transition:'background 0.15s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-offset)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <div style={{width:10,height:10,borderRadius:'50%',background:CHART_COLORS[i%CHART_COLORS.length],flexShrink:0}}/>
                       <span style={{flex:1}}>{k}</span>
                       <span style={{fontWeight:600}}>{ppCounts[k]}건</span>
@@ -301,19 +304,19 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
         </div>
         <div className="chart-card">
           <div className="chart-title">담당자별 포지션 제안 횟수</div>
-          <ChartBox type="bar" data={{labels:Object.keys(mgrPropCounts),datasets:[{data:Object.values(mgrPropCounts),backgroundColor:CHART_COLORS.slice(0,4),borderRadius:6,borderWidth:0}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:scaleOpts}} />
+          <ChartBox type="bar" data={{labels:Object.keys(mgrPropCounts),datasets:[{data:Object.values(mgrPropCounts),backgroundColor:CHART_COLORS.slice(0,4),borderRadius:6,borderWidth:0}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:scaleOpts}} onChartClick={(idx)=>onNavigate('proposal',{manager:Object.keys(mgrPropCounts)[idx]})}/>
         </div>
         <div className="chart-card">
           <div className="chart-title">채용 현황</div>
           <div className="funnel-grid">
             {[
-              {label:'면접자',val:totalInt,base:totalInt,color:'var(--color-blue)'},
-              {label:'면접 참여',val:attended,base:totalInt,color:'var(--color-primary)'},
-              {label:'합격',val:passed,base:attended,color:'var(--color-success)'},
-              {label:'불합격',val:failed,base:attended,color:'var(--color-error)'},
-              {label:'최종 입사',val:finalHired,base:passed,color:'var(--color-gold)'},
+              {label:'면접자',    val:totalInt,   base:totalInt,  color:'var(--color-blue)',    nav:()=>onNavigate('interview',{})},
+              {label:'면접 참여', val:attended,   base:totalInt,  color:'var(--color-primary)', nav:()=>onNavigate('interview',{attendance:'참석'})},
+              {label:'합격',      val:passed,     base:attended,  color:'var(--color-success)', nav:()=>onNavigate('interview',{passed:'합격'})},
+              {label:'불합격',    val:failed,     base:attended,  color:'var(--color-error)',   nav:()=>onNavigate('interview',{passed:'불합격'})},
+              {label:'최종 입사', val:finalHired, base:passed,    color:'var(--color-gold)',    nav:()=>onNavigate('onboard',{})},
             ].map(item=>(
-              <div key={item.label} className="funnel-item">
+              <div key={item.label} className="funnel-item" onClick={item.nav} style={{cursor:'pointer',borderRadius:6,padding:'4px',transition:'background 0.15s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-offset)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                 <div className="funnel-label">{item.label}</div>
                 <div className="funnel-bar-wrap"><div className="funnel-bar-fill" style={{width:pct(item.val,item.base)+'%',background:item.color}}/></div>
                 <div className="funnel-stats">{item.val}명 <span className="funnel-pct">({pct(item.val,item.base)}%)</span></div>
@@ -373,11 +376,15 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
     data.filter(r =>
       (!filter.search || r.name.toLowerCase().includes(filter.search) || r.job.toLowerCase().includes(filter.search)) &&
       (!filter.manager || r.manager === filter.manager) &&
+      (!filter.platform || r.platform === filter.platform) &&
+      (!filter.attendance || r.attendance === filter.attendance) &&
+      (!filter.passed || r.passed === filter.passed) &&
       (!typeTab || r.type === typeTab)
     ).sort((a,b) => b.date.localeCompare(a.date)),
     [data, filter, typeTab]
   );
   const hl = getHighlightDate(filtered);
+  const hasActiveFilter = filter.platform || filter.attendance || filter.passed || filter.manager || filter.search;
 
   return (
     <div>
@@ -398,6 +405,21 @@ const InterviewPage = React.memo(function InterviewPage({ data, filter, setFilte
         <select className="filter-select" value={filter.manager} onChange={e=>setFilter(f=>({...f,manager:e.target.value}))}>
           <option value="">전체</option>{appSettings.managers.map(m=><option key={m}>{m}</option>)}
         </select>
+        <span className="filter-label">플랫폼</span>
+        <select className="filter-select" value={filter.platform||''} onChange={e=>setFilter(f=>({...f,platform:e.target.value}))}>
+          <option value="">전체</option>{appSettings.applicantPlatforms.map(p=><option key={p}>{p}</option>)}
+        </select>
+        <span className="filter-label">참석</span>
+        <select className="filter-select" value={filter.attendance||''} onChange={e=>setFilter(f=>({...f,attendance:e.target.value}))}>
+          <option value="">전체</option><option>참석</option><option>참석확인</option><option>불참</option><option>확인중</option>
+        </select>
+        <span className="filter-label">합격</span>
+        <select className="filter-select" value={filter.passed||''} onChange={e=>setFilter(f=>({...f,passed:e.target.value}))}>
+          <option value="">전체</option><option>합격</option><option>불합격</option>
+        </select>
+        {hasActiveFilter && (
+          <button className="btn btn-secondary" style={{marginLeft:4}} onClick={()=>setFilter({search:'',manager:'',platform:'',attendance:'',passed:''})}>필터 초기화</button>
+        )}
       </div>
       <div className="table-wrap">
         <table ref={iTbRef} className="data-table" style={{tableLayout:'fixed'}}>
@@ -853,7 +875,7 @@ export default function ClientApp() {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, id, type }
   const menuTimerRef = useRef(null);
   const [, startTransition] = useTransition();
-  const [filterI, setFilterI] = useState({ search:'', manager:'' });
+  const [filterI, setFilterI] = useState({ search:'', manager:'', platform:'', attendance:'', passed:'' });
   const [filterO, setFilterO] = useState({ search:'', manager:'', status:'' });
   const [filterP, setFilterP] = useState({ search:'', manager:'', platform:'', result:'' });
 
@@ -1020,6 +1042,18 @@ export default function ClientApp() {
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
+  const navigateWithFilter = useCallback((targetPage, filters) => {
+    if (targetPage === 'interview') {
+      setFilterI({ search:'', manager:'', platform:'', attendance:'', passed:'', ...filters });
+    } else if (targetPage === 'proposal') {
+      setFilterP({ search:'', manager:'', platform:'', result:'', ...filters });
+    } else if (targetPage === 'onboard') {
+      setFilterO({ search:'', manager:'', status:'', ...filters });
+    }
+    setPage(targetPage);
+    setSidebarOpen(false);
+  }, []);
+
   return (
     <div className="app-wrapper" onClick={()=>setContextMenu(null)}>
       {/* Sidebar */}
@@ -1074,7 +1108,7 @@ export default function ClientApp() {
         </header>
 
         <div className="content-area">
-          {page==='dashboard' && <DashboardPage interviews={interviews} onboards={onboards} proposals={proposals} costs={costs} sheetStatus={sheetStatus} theme={theme} appSettings={appSettings}/>}
+          {page==='dashboard' && <DashboardPage interviews={interviews} onboards={onboards} proposals={proposals} costs={costs} sheetStatus={sheetStatus} theme={theme} appSettings={appSettings} onNavigate={navigateWithFilter}/>}
           {page==='interview' && <InterviewPage data={interviews} filter={filterI} setFilter={setFilterI} onUpdate={updateInterview} onUpdateType={updateInterviewType} onAdd={addInterviewRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='onboard' && <OnboardPage data={onboards} filter={filterO} setFilter={setFilterO} onUpdate={updateOnboard} onAdd={addOnboardRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
