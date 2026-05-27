@@ -8,7 +8,7 @@ export async function getData(type) {
     .from('hr_data')
     .select('data')
     .eq('type', type)
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data?.data ?? [];
 }
