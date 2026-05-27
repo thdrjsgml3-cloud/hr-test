@@ -7,17 +7,17 @@ export async function getData(type) {
   const { data, error } = await supabase
     .from('hr_data')
     .select('data')
-    .eq('type', type)
-    .maybeSingle();
+    .eq('type', type);
   if (error) throw new Error(error.message);
-  return data?.data ?? [];
+  return data?.[0]?.data ?? [];
 }
 
 export async function setData(type, rows) {
   const supabase = createClient();
   const { error } = await supabase
     .from('hr_data')
-    .upsert({ type, data: rows });
+    .update({ data: rows })
+    .eq('type', type);
   if (error) throw new Error(error.message);
 }
 
