@@ -1766,8 +1766,8 @@ export default function ClientApp() {
     return DEFAULT_APP_SETTINGS;
   });
   const updateAppSettings = useCallback(s => { setAppSettings(s); localStorage.setItem('appSettings', JSON.stringify(s)); }, []);
-  const [appName, setAppName] = useState(() => localStorage.getItem('appName') || '채용관리');
-  const [logoImg, setLogoImg]  = useState(() => localStorage.getItem('logoImg')  || '');
+  const [appName, setAppName] = useState(() => { try { return localStorage.getItem('appName') || '채용관리'; } catch { return '채용관리'; } });
+  const [logoImg, setLogoImg]  = useState(() => { try { return localStorage.getItem('logoImg')  || ''; } catch { return ''; } });
   const [editingAppName, setEditingAppName] = useState(false);
   const logoInputRef = useRef(null);
   const handleLogoUpload = (e) => {
