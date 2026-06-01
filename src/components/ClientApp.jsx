@@ -1832,10 +1832,10 @@ function GuidePage() {
           <div className="page-desc">전형별 안내 문자·이메일 템플릿 — ⠿ 아이콘을 드래그하여 순서 변경, 제목 클릭하여 수정</div>
         </div>
       </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:16 }}>
         {sections.map(s => (
           <div key={s.id}
-            style={{ background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-sm)', overflow:'hidden' }}
+            style={{ flex: s.items.length === 1 ? '1 1 420px' : '1 1 100%', minWidth:0, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-sm)', overflow:'hidden' }}
             onDragOver={e => onSectionDragOver(e, s.id)}
             onDragLeave={onSectionDragLeave}
             onDrop={e => onSectionDrop(e, s.id)}
