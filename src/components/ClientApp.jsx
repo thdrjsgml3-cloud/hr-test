@@ -1857,10 +1857,10 @@ function GuidePage() {
               />
             </div>
             {/* Items */}
-            <div style={{ display:'flex', flexDirection:'column', gap:12, padding:12 }}>
+            <div style={{ display:'flex', flexDirection:'row', flexWrap:'wrap', gap:12, padding:12 }}>
               {s.items.map(item => (
                 <div key={item.id}
-                  style={{ background:'var(--color-surface-2)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-md)', overflow:'hidden' }}
+                  style={{ flex:'1 1 360px', minWidth:0, background:'var(--color-surface-2)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-md)', overflow:'hidden' }}
                   onDragOver={e => onItemDragOver(e, s.id, item.id)}
                   onDragLeave={onItemDragLeave}
                   onDrop={e => onItemDrop(e, s.id, item.id)}
