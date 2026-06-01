@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { Chart, registerables } from 'chart.js';
-import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
 import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs } from '@/lib/sheets';
@@ -1915,6 +1915,283 @@ function GuidePage() {
 }
 
 /* ═══════════════════════════════════════════
+   ATTENDANCE HELPERS
+═══════════════════════════════════════════ */
+function countDates(str) {
+  if (!str?.trim()) return 0;
+  return str.trim().split(/[\s,]+/).filter(Boolean).length;
+}
+function getQuarterKey(ym) {
+  const [year, month] = ym.split('-').map(Number);
+  return `${year}-Q${Math.ceil(month / 3)}`;
+}
+function quarterLabel(qk) {
+  const [year, q] = qk.split('-Q');
+  return `${year}년 ${q}/4분기`;
+}
+const WARN_TEMPLATE = (name, ym, dates, count) => {
+  const [y, m] = ym.split('-');
+  return `안녕하세요 ${name}님,\n\n${y}년 ${parseInt(m)}월 근태 누락이 총 ${count}회 발생하였습니다.\n누락 일자: ${dates}\n\n향후 유사한 상황이 반복될 경우 인사 조치가 있을 수 있으므로,\n근태 관리에 각별히 주의해 주시기 바랍니다.\n\n감사합니다.\n인사팀 드림`;
+};
+
+/* ═══════════════════════════════════════════
+   ATTENDANCE MISS PAGE (근태 누락)
+═══════════════════════════════════════════ */
+function AttendanceMissPage() {
+  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('attendMiss') || '[]'));
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [warnModal, setWarnModal] = useState(null);
+  const [warnText, setWarnText] = useState('');
+  const idRef = useRef(1);
+  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
+
+  const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); };
+  const addRow = () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    save([...records, { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false }]);
+  };
+  const update = (id, field, value) => save(records.map(r => {
+    if (r.id !== id) return r;
+    const u = { ...r, [field]: value };
+    if (field === 'dates') u.count = countDates(value);
+    return u;
+  }));
+  const del = (id) => { if (confirm('삭제하시겠습니까?')) save(records.filter(r => r.id !== id)); };
+  const markChecked = (id) => save(records.map(r => r.id === id ? { ...r, checked: true } : r));
+  const openWarn = (r) => { setWarnText(WARN_TEMPLATE(r.name, r.yearMonth, r.dates, r.count)); setWarnModal(r); };
+  const confirmWarn = () => {
+    const existing = JSON.parse(localStorage.getItem('attendWarn') || '[]');
+    const maxId = existing.length ? Math.max(...existing.map(r => r.id), 0) : 0;
+    localStorage.setItem('attendWarn', JSON.stringify([...existing, { id: maxId + 1, yearMonth: warnModal.yearMonth, name: warnModal.name, dates: warnModal.dates, count: warnModal.count, action: '경고 완료', content: '근태 미체크' }]));
+    save(records.map(r => r.id === warnModal.id ? { ...r, warned: true } : r));
+    setWarnModal(null);
+  };
+
+  const filtered = records.filter(r => r.yearMonth?.startsWith(yearFilter));
+  const groupMap = {};
+  filtered.forEach(r => { if (!groupMap[r.yearMonth]) groupMap[r.yearMonth] = []; groupMap[r.yearMonth].push(r); });
+  const sortedMonths = Object.keys(groupMap).sort().reverse();
+
+  // Quarterly summary (all data)
+  const qSum = {};
+  records.forEach(r => {
+    if (!r.name || !r.yearMonth) return;
+    const qk = getQuarterKey(r.yearMonth);
+    if (!qSum[r.name]) qSum[r.name] = {};
+    qSum[r.name][qk] = (qSum[r.name][qk] || 0) + (r.count || 0);
+  });
+  const allQKeys = [...new Set(records.filter(r => r.yearMonth).map(r => getQuarterKey(r.yearMonth)))].sort();
+  const allNames = [...new Set(Object.keys(qSum))].sort();
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><div className="page-title">근태 누락</div><div className="page-desc">월별 근태 누락 입력 및 분기별 종합 — 점검완료 후 경고 안내 발송</div></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <select className="filter-select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
+            {['2024','2025','2026','2027'].map(y => <option key={y}>{y}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
+        </div>
+      </div>
+      <div className="table-wrap" style={{ marginBottom:24 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width:95 }}>연/월</th><th>이름</th><th>누락 일자 (공백 구분)</th>
+              <th style={{ width:55, textAlign:'center' }}>횟수</th>
+              <th style={{ width:85, textAlign:'center' }}>점검완료</th>
+              <th style={{ width:85, textAlign:'center' }}>경고안내</th>
+              <th style={{ width:50 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedMonths.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
+            )}
+            {sortedMonths.map(ym =>
+              groupMap[ym].map((r, idx) => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0 ? 'var(--color-surface-offset)' : 'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
+                    {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
+                  </td>
+                  <td><input className="inline-input" value={r.name} onChange={e => update(r.id,'name',e.target.value)} placeholder="이름"/></td>
+                  <td><input className="inline-input" value={r.dates} onChange={e => update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
+                  <td style={{ textAlign:'center', fontWeight:700, color: r.count>=3?'var(--color-error)':r.count>=2?'var(--color-warning)':'var(--color-text)' }}>{r.count||'-'}</td>
+                  <td style={{ textAlign:'center' }}>
+                    {r.checked
+                      ? <span className="badge badge-success">완료</span>
+                      : <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)',padding:'3px 8px' }} onClick={() => markChecked(r.id)}>점검완료</button>
+                    }
+                  </td>
+                  <td style={{ textAlign:'center' }}>
+                    {r.checked && (r.warned
+                      ? <span className="badge badge-gray">발송됨</span>
+                      : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={() => openWarn(r)}>경고 안내</button>
+                    )}
+                  </td>
+                  <td><button className="btn btn-sm" style={{ color:'var(--color-error)',opacity:0.6 }} onClick={() => del(r.id)}>삭제</button></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {allNames.length > 0 && (
+        <div className="card">
+          <div className="card-title">분기별 누락 종합</div>
+          <div style={{ overflowX:'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  {allQKeys.map(qk => <th key={qk} style={{ textAlign:'center', whiteSpace:'nowrap' }}>{quarterLabel(qk)}</th>)}
+                  <th style={{ textAlign:'center' }}>전체</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allNames.map(name => {
+                  const total = allQKeys.reduce((s,qk) => s + (qSum[name]?.[qk]||0), 0);
+                  return (
+                    <tr key={name}>
+                      <td style={{ fontWeight:600 }}>{name}</td>
+                      {allQKeys.map(qk => {
+                        const cnt = qSum[name]?.[qk] || 0;
+                        return <td key={qk} style={{ textAlign:'center', fontWeight:cnt>0?700:400, color:cnt>=3?'var(--color-error)':cnt>=2?'var(--color-warning)':cnt>0?'var(--color-text)':'var(--color-text-faint)' }}>{cnt||'-'}</td>;
+                      })}
+                      <td style={{ textAlign:'center', fontWeight:700 }}>{total||'-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {warnModal && (
+        <div className="modal-overlay open" onClick={() => setWarnModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:560 }}>
+            <div className="modal-header">
+              <div className="modal-title">근태 경고 안내 — {warnModal.name}</div>
+              <button className="modal-close" onClick={() => setWarnModal(null)}>✕</button>
+            </div>
+            <div style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', marginBottom:6 }}>이메일 초안을 수정 후 복사하여 발송하세요.</div>
+            <textarea
+              value={warnText}
+              onChange={e => setWarnText(e.target.value)}
+              style={{ width:'100%', minHeight:220, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:12, fontSize:'var(--text-sm)', lineHeight:1.7, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none', marginBottom:12 }}
+            />
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setWarnModal(null)}>취소</button>
+              <button className="btn" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }} onClick={() => navigator.clipboard.writeText(warnText)}>복사</button>
+              <button className="btn btn-primary" onClick={confirmWarn}>경고 기록 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   ATTENDANCE WARNING PAGE (근태 경고 건)
+═══════════════════════════════════════════ */
+function AttendanceWarningPage() {
+  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('attendWarn') || '[]'));
+  const idRef = useRef(1);
+  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
+
+  const save = (next) => { setRecords(next); localStorage.setItem('attendWarn', JSON.stringify(next)); };
+  const addRow = () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    save([...records, { id:idRef.current++, yearMonth:ym, name:'', dates:'', count:0, action:'경고 완료', content:'' }]);
+  };
+  const update = (id, field, value) => save(records.map(r => r.id!==id ? r : {...r,[field]:value}));
+  const del = (id) => { if(confirm('삭제하시겠습니까?')) save(records.filter(r => r.id!==id)); };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><div className="page-title">근태 경고 건</div><div className="page-desc">근태 누락으로 인한 경고 발송 기록</div></div>
+        <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
+      </div>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr><th style={{width:95}}>연/월</th><th>이름</th><th>누락 일자</th><th style={{textAlign:'center',width:55}}>횟수</th><th>경고 조치</th><th>내용</th><th style={{width:50}}></th></tr>
+          </thead>
+          <tbody>
+            {records.length===0 && <tr><td colSpan={7} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>경고 기록이 없습니다. 근태 누락 탭에서 경고 기록 완료 시 자동 추가됩니다.</td></tr>}
+            {records.map(r => (
+              <tr key={r.id}>
+                <td><input className="inline-input" value={r.yearMonth} onChange={e=>update(r.id,'yearMonth',e.target.value)} style={{width:85}}/></td>
+                <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
+                <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="날짜"/></td>
+                <td style={{textAlign:'center'}}><input className="inline-input" type="number" value={r.count} onChange={e=>update(r.id,'count',parseInt(e.target.value)||0)} style={{width:45,textAlign:'center'}}/></td>
+                <td><select className="inline-select" value={r.action} onChange={e=>update(r.id,'action',e.target.value)}>
+                  <option>경고 완료</option><option>주의 조치</option><option>진행 중</option>
+                </select></td>
+                <td><input className="inline-input" value={r.content} onChange={e=>update(r.id,'content',e.target.value)} placeholder="내용"/></td>
+                <td><button className="btn btn-sm" style={{color:'var(--color-error)',opacity:0.6}} onClick={()=>del(r.id)}>삭제</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   OTHER WARNING PAGE (기타 경고 건)
+═══════════════════════════════════════════ */
+function OtherWarningPage() {
+  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('otherWarn') || '[]'));
+  const idRef = useRef(1);
+  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
+
+  const save = (next) => { setRecords(next); localStorage.setItem('otherWarn', JSON.stringify(next)); };
+  const addRow = () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    save([...records, { id:idRef.current++, yearMonth:ym, name:'', content:'' }]);
+  };
+  const update = (id, field, value) => save(records.map(r => r.id!==id ? r : {...r,[field]:value}));
+  const del = (id) => { if(confirm('삭제하시겠습니까?')) save(records.filter(r => r.id!==id)); };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><div className="page-title">기타 경고 건</div><div className="page-desc">근태 외 기타 경고 발송 기록</div></div>
+        <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
+      </div>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr><th style={{width:95}}>연/월</th><th>이름</th><th>내용</th><th style={{width:50}}></th></tr>
+          </thead>
+          <tbody>
+            {records.length===0 && <tr><td colSpan={4} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>기타 경고 기록이 없습니다.</td></tr>}
+            {records.map(r => (
+              <tr key={r.id}>
+                <td><input className="inline-input" value={r.yearMonth} onChange={e=>update(r.id,'yearMonth',e.target.value)} style={{width:85}}/></td>
+                <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
+                <td><input className="inline-input" value={r.content} onChange={e=>update(r.id,'content',e.target.value)} placeholder="경고 내용"/></td>
+                <td><button className="btn btn-sm" style={{color:'var(--color-error)',opacity:0.6}} onClick={()=>del(r.id)}>삭제</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    J/D PAGE
 ═══════════════════════════════════════════ */
 const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
@@ -2393,7 +2670,7 @@ export default function ClientApp() {
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', settings:'설정' };
+  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'attend-warn':'근태 경고 건', 'other-warn':'기타 경고 건', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -2447,6 +2724,11 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리<span className="nav-count">{jds.filter(r=>r.status==='진행중').length}</span></button>
           <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내 내용 양식</button>
           <div className="nav-divider"/>
+          <div className="nav-section-label">근태 관리</div>
+          <button className={`nav-item ${page==='attend-miss'?'active':''}`} onClick={()=>nav('attend-miss')}><ClipboardList size={16}/> 근태 누락</button>
+          <button className={`nav-item ${page==='attend-warn'?'active':''}`} onClick={()=>nav('attend-warn')}><AlertTriangle size={16}/> 근태 경고 건</button>
+          <button className={`nav-item ${page==='other-warn'?'active':''}`} onClick={()=>nav('other-warn')}><Clock size={16}/> 기타 경고 건</button>
+          <div className="nav-divider"/>
           <button className={`nav-item ${page==='settings'?'active':''}`} onClick={()=>nav('settings')}><Settings size={16}/> 설정</button>
         </nav>
       </aside>
@@ -2482,6 +2764,9 @@ export default function ClientApp() {
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
           {page==='guide' && <GuidePage/>}
+          {page==='attend-miss' && <AttendanceMissPage/>}
+          {page==='attend-warn' && <AttendanceWarningPage/>}
+          {page==='other-warn' && <OtherWarningPage/>}
           {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
         </div>
       </div>
