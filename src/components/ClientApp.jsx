@@ -2393,7 +2393,7 @@ export default function ClientApp() {
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내', settings:'설정' };
+  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -2445,7 +2445,7 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황<span className="nav-count">{proposals.length}</span></button>
           <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용<span className="nav-count">{costs.length}</span></button>
           <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리<span className="nav-count">{jds.filter(r=>r.status==='진행중').length}</span></button>
-          <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내</button>
+          <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내 내용 양식</button>
           <div className="nav-divider"/>
           <button className={`nav-item ${page==='settings'?'active':''}`} onClick={()=>nav('settings')}><Settings size={16}/> 설정</button>
         </nav>
