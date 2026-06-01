@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { Chart, registerables } from 'chart.js';
-import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
 import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs } from '@/lib/sheets';
@@ -1474,6 +1474,419 @@ function CostPlanReport({ activeJDs, periods, plan, onClose }) {
 }
 
 /* ═══════════════════════════════════════════
+   GUIDE PAGE
+═══════════════════════════════════════════ */
+const INITIAL_GUIDE_TEMPLATES = [
+  { id:'s1', title:'1] 첫 컨택 (재직 중일 때)', items:[
+    { id:'i1', title:'1) 지원자', content:`< (주)퍼플페퍼 회신 요청 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 저희 채용에 관심가져 주시고 'OOOO' 직무에 지원해 주셔서 감사드립니다.
+
+현재 재직중이셔서 문자로 남겨드리오니, 편하신 시간에 이 번호로 전화부탁드립니다.
+
+감사합니다 : )` },
+    { id:'i2', title:'2) 포지션 제안자', content:`< (주)퍼플페퍼 회신 요청 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 잡코리아를 통한 저희의 제안에 긍정적으로 바라봐 주셔서 대단히 감사드립니다.
+
+현재 재직중이셔서 문자로 남겨드리오니, 편하신 시간에 이 번호로 전화부탁드립니다.
+
+감사합니다 : )` },
+  ]},
+  { id:'s2', title:'2] 첫 컨택 (부재 중일 때)', items:[
+    { id:'i3', title:'1) 지원자', content:`< (주)퍼플페퍼 회신 요청 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 저희 채용에 관심가져 주시고 'OOOO' 직무에 지원해 주셔서 감사드립니다.
+
+현재 부재중이셔서 문자로 남겨드리오니, 편하신 시간에 이 번호로 전화부탁드립니다.
+
+감사합니다 : )` },
+    { id:'i4', title:'2) 포지션 제안자', content:`< (주)퍼플페퍼 회신 요청 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 잡코리아를 통한 저희의 제안에 긍정적으로 바라봐 주셔서 대단히 감사드립니다.
+
+현재 부재중이셔서 문자로 남겨드리오니, 편하신 시간에 이 번호로 전화부탁드립니다.
+
+감사합니다 : )` },
+  ]},
+  { id:'s3', title:'3] 면접 안내', items:[
+    { id:'i5', title:'1) PD 관련 직무 (브랜드 SNS 계정 공유)', content:`< (주)퍼플페퍼 면접 전형 안내 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사팀입니다.
+
+만나뵙고 인사드릴 기회를 주셔서 대단히 감사드립니다!
+
+아래와 같이 면접 일정을 안내드리오니, 확인 부탁드립니다.
+
+▶ 면접 직무 : OOOO
+
+▶ 면접 일시 : 2026년 OO월 OO일 O요일 OO시
+
+▶ 면접 장소 : 서울특별시 마포구 와우산로 17길 19-18 2층
+>> 도착하셔서 전화주시면 안내 도와드리겠습니다!
+
+▶ 주차장 입구가 매우 협소하오니 되도록 대중교통 이용해 주시면 감사드립니다.
+
+▶ 면접 복장 : 편한 복장
+
+▶ 포트폴리오 : 추가로 제출하실 포트폴리오가 있으시다면, hr@pppp.im으로 보내주시면 감사드립니다.
+
+궁금한 부분이 있으시면 언제든지 이 번호로 연락 부탁드립니다.
+
+
+감사합니다 : )
+
+● (주)퍼플페퍼 홈페이지: https://www.pppp.im/
+● 관련 기사 1: https://www.joongang.co.kr/article/25287132
+● 관련 기사 2: https://www.kmib.co.kr/article/view.asp?arcid=0029484834&code=61171811&cp=nv
+
+• 코브: https://www.instagram.com/plzlovecov/
+• 육지: https://www.instagram.com/plzloveyookji/
+• 인플루언서 [무재한]: https://www.instagram.com/pppp_jaehan/
+• 인플루언서 [마부장]: https://www.instagram.com/ma_bujang/
+• 온라인 매거진 [FAVO]: https://www.instagram.com/favokorea/
+
+
+-(주)퍼플페퍼 인사팀 올림-` },
+    { id:'i6', title:'2) 일반 직무', content:`< (주)퍼플페퍼 면접 전형 안내 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사팀입니다.
+
+만나뵙고 인사드릴 기회를 주셔서 대단히 감사드립니다!
+
+아래와 같이 면접 일정을 안내드리오니, 확인 부탁드립니다.
+
+▶ 면접 직무 : OOOO
+
+▶ 면접 일시 : 2026년 OO월 OO일 O요일 OO시
+
+▶ 면접 장소 : 서울특별시 마포구 와우산로 17길 19-18 2층
+> 도착하셔서 전화주시면 안내 도와드리겠습니다!
+
+▶ 현재 1층과 주차장이 공사중이므로 대중교통 이용 부탁드리며, 사옥 앞에 도착하시면 전화 부탁드립니다.
+
+▶ 면접 복장 : 편한 복장
+
+궁금한 부분이 있으시면 언제든지 이 번호로 연락 부탁드립니다.
+
+
+감사합니다 : )
+
+● (주)퍼플페퍼 홈페이지: https://www.pppp.im/
+● 관련 기사 1: https://www.joongang.co.kr/article/25287132
+● 관련 기사 2: https://www.thebigdata.co.kr/view.php?ud=2025040915475792436cf2d78c68_23
+● 관련 기사 3: https://www.donga.com/news/Economy/article/all/20260305/133472493/1
+
+-(주)퍼플페퍼 인사팀 올림-` },
+  ]},
+  { id:'s4', title:'4] 면접 합격 및 처우 협의', items:[
+    { id:'i7', title:'1) 이메일 안내', content:`안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 당사 채용에 관심을 가져주시고 긍정적으로 생각해 주셔서 진심으로 감사드립니다.
+
+면접 전형 결과  '합격'입니다.
+
+진행하신 모든 인터뷰를 성공적으로 마치셨기에, 처우 협의 등 다음 채용 프로세스를 진행하고자 아래 내용을 안내드립니다.
+
+다만, 본 메일은 최종 합격을 확정하는 내용은 아니며, 최종 합격 여부는 처우 협의가 완료된 이후 확정됨을 안내드립니다.
+
+※ 향후 채용 프로세스 요약
+1. 처우 협의를 위한 서류를 제출해 주세요.
+
+2. 서류 검토 후, 후보자님께 오퍼레터 메일을 발송드립니다. (서류 제출일로부터 3일 이내 소요)
+
+3. 오퍼레터 검토 후, 입사 일자를 조율합니다.
+
+4. 내용 검토 확인 후, 최종 합격 및 입사가 확정됩니다.
+
+■ 제출 서류 안내
+아래 서류를 준비하시어 본 메일로 회신 부탁드립니다.
+
+1. 연봉 관련 서류
+ - 최근 연도 연봉계약서 (2025년/2026년)
+ - 최근 연도 소득자별 근로소득원천징수부 또는 갑근세 납입증명서
+ - 최근 3개월 급여명세서 (기본급, 능력급, 식대 등 항목별로 표기된 상세 내역)
+ - 당해 연도 성과급(인센티브) 내역 증빙자료
+※ 별도 서류 또는 통장사본 제출로 증빙해주시기 바랍니다.
+
+2. 고용보험 자격 이력 내역서
+(※ 공동인증서 로그인 필요 /  https://total.kcomwel.or.kr)
+ - [개인] → 고용/산재보험 자격 이력 내역서 선택
+ - 보험구분: 고용 / 조회구분: 상용 선택 후 조회
+ - 자격관리 상세이력 선택 → 자격 이력 내역서 신청 후 증명원 출력
+→ PDF 또는 JPG 파일로 회신 바랍니다.
+→ 고용보험에 기재되지 않은 경력은 별도 경력증명서를 함께 제출해 주세요.
+
+3. 비자 증명서(외국인일 경우)
+
+※ 보훈 대상자인 경우, 미리 관련 내용을 공유 부탁드립니다.
+※ 서류 제출은 **OO월 OO일(O요일) 11시**까지 완료 부탁드립니다. (준비에 어려움이 있을 경우 반드시 사전에 연락 바랍니다)
+
+기타 문의사항이 있으시면 언제든지 편하게 연락주시기 바랍니다.
+
+감사합니다.` },
+    { id:'i8', title:'2) 문자 안내', content:`[퍼플페퍼 채용] 처우 협의 및 후속 채용 절차 안내
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, 당사 채용에 관심을 가져주시고 긍정적으로 생각해 주셔서 진심으로 감사드립니다.
+
+면접 전형 결과  '합격'입니다.
+
+진행하신 모든 인터뷰를 성공적으로 마치셨기에, 처우 협의 등 다음 채용 프로세스를 진행하고자 메일로 안내드렸으니 확인 후 회신 부탁드립니다.
+
+- 메일 주소 :
+
+감사합니다.
+
+* 본 문자는 최종 합격을 확정하는 내용은 아니며, 최종 합격 여부는 처우 협의가 완료된 이후 확정됨을 안내드립니다.` },
+  ]},
+  { id:'s5', title:'5] 처우협의 최종 및 입사 안내', items:[
+    { id:'i9', title:'1) 이메일 안내', content:`< (주)퍼플페퍼 채용 전형 결과 안내 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+OOO님은 퍼플페퍼 'OOOO' 직무에 '최종 합격'되셨습니다.
+
+하기와 같이 입사일과 추가 제출서류를 안내드리오니 입사일 전까지 회신 부탁드립니다.
+(첨부파일 확인)
+
+1) 처우 안내
+- 직무 : OOOO
+- 연봉 : OOOO만원
+- 근무지 : (주)퍼플페퍼 본사, 서울특별시 마포구 와우산로17길 19-18
+- 입사 예정일 : 2026년 OO월 OO일 O요일
+- 첫 출근일 출근시간 : 오전 10시 30분 (2층으로 오시면 됩니다)
+※ 입사 후 3개월 간의 시용 기간이 있으며, 이 기간 동안 시용 평가가 진행됩니다. 평가 결과에 따라 정규직 전환 여부가 결정됩니다.
+
+2) 첫 출근일 출근시간 : 오전 10시 30분
+
+3) 업무 시 사용하실 PC : 업무 상 필요하신 PC 스펙이 있으시면 말씀 주세요. 특이사항 없으시면 일반 사무용 PC로 준비하겠습니다.
+
+4) 추가 필요 서류 : 주민등록등본, 최종 학력 졸업증명서, 비자 증명서(외국인일 경우), 통장사본 (부양가족 있으시다면 말씀 부탁드립니다)
+
+※ 제출하신 서류의 내용이 채용과정에서 진술하신 내용과 다른 경우 채용이 취소될 수 있습니다.
+
+더 궁금한 사항이 있으시면 언제든지 편하게 문의주시고 오퍼에 대한 확답은 2026년 OO월 OO일 O요일 11시까지 회신 부탁드립니다.
+
+다시 한번 귀하의 관심에 감사드립니다.
+
+감사합니다 : )` },
+    { id:'i10', title:'2) 문자 안내', content:`[퍼플페퍼 채용] 채용 전형 결과 안내
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+(주)퍼플페퍼 채용 전형 결과가 아래의 이메일로 안내드리오니 확인 후 회신 부탁드립니다.
+
+- 메일 주소 :
+
+감사합니다.` },
+  ]},
+  { id:'s6', title:'6] 면접 전형 탈락', items:[
+    { id:'i11', title:'안내 문자', content:`< (주)퍼플페퍼 면접 전형 결과 안내 >
+
+안녕하세요 OOO님, (주)퍼플페퍼 인사담당자입니다.
+
+먼저, (주)퍼플페퍼 채용에 관심을 가져주시고 귀중한 시간을 내주셔서 진심으로 감사드립니다.
+
+OOO님이 내어 주신 시간의 가치를 잘 알기에 관련 담당자들과 다방면으로 고려하였으나,
+아쉽게도 이번 채용에서는 합격의 소식을 전해드리지 못하게 되었습니다.
+
+인터뷰에서 보여주신 역량은 매우 훌륭하셨습니다.
+하지만 정말 많은 분들 속에서 소수를 선발할 수 밖에 없었던 점을 꼭 알아주셨으면 좋겠습니다.
+
+이번이 마지막 기회는 아니라고 생각합니다.
+이후 좋은 인연으로 다시 만나뵐 수 있도록, 저희 (주)퍼플페퍼는 더욱 빠르게 성장하여 다음에는 더욱 많은 분들을 모실 수 있도록 하겠습니다.
+
+지금까지 보여주신 관심과 열정에 감사드리며,
+추후 더 좋은 기회로 다시 인연이 닿기를 진심으로 기원합니다.
+
+다시 한 번 소중한 시간을 내어 주신 점에 깊이 감사드립니다.
+
+감사합니다.
+
+(주)퍼플페퍼 인사담당자 올림` },
+  ]},
+  { id:'s7', title:'7] 면접 참석 확인', items:[
+    { id:'i12', title:'안내 문자', content:`< (주)퍼플페퍼 면접 참석 확인 요청 >
+
+안녕하세요, (주)퍼플페퍼 인사팀입니다.
+
+금일 면접 참석 확인 차 연락드리오니, 확인 후 회신하여 주시면 감사드립니다.
+
+
+감사합니다 : )` },
+  ]},
+];
+
+function GuidePage() {
+  const [sections, setSections] = useState(() =>
+    JSON.parse(localStorage.getItem('guideTemplates') || 'null') || INITIAL_GUIDE_TEMPLATES
+  );
+  const [toast, setToast] = useState(false);
+  const dragRef = useRef({ type: null, sectionId: null, itemId: null, fromSectionId: null });
+
+  const save = (next) => {
+    setSections(next);
+    localStorage.setItem('guideTemplates', JSON.stringify(next));
+  };
+
+  const updateContent = (itemId, value) => {
+    setSections(prev => prev.map(s => ({
+      ...s,
+      items: s.items.map(i => i.id === itemId ? { ...i, content: value } : i)
+    })));
+  };
+
+  const copyItem = (itemId) => {
+    let txt = '';
+    sections.forEach(s => s.items.forEach(i => { if (i.id === itemId) txt = i.content; }));
+    navigator.clipboard.writeText(txt).then(() => {
+      setToast(true);
+      setTimeout(() => setToast(false), 1800);
+    });
+  };
+
+  // Section drag
+  const onSectionDragStart = (e, sid) => {
+    dragRef.current = { type: 'section', sectionId: sid, itemId: null, fromSectionId: null };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onSectionDragOver = (e, sid) => {
+    if (dragRef.current.type !== 'section' || dragRef.current.sectionId === sid) return;
+    e.preventDefault();
+    e.currentTarget.style.outline = '2px dashed var(--color-primary)';
+  };
+  const onSectionDragLeave = (e) => { e.currentTarget.style.outline = ''; };
+  const onSectionDrop = (e, targetSid) => {
+    e.currentTarget.style.outline = '';
+    if (dragRef.current.type !== 'section' || dragRef.current.sectionId === targetSid) return;
+    e.preventDefault();
+    const next = [...sections];
+    const fi = next.findIndex(s => s.id === dragRef.current.sectionId);
+    const ti = next.findIndex(s => s.id === targetSid);
+    const [m] = next.splice(fi, 1);
+    next.splice(ti, 0, m);
+    dragRef.current = { type: null };
+    save(next);
+  };
+
+  // Item drag
+  const onItemDragStart = (e, sid, iid) => {
+    dragRef.current = { type: 'item', sectionId: sid, itemId: iid, fromSectionId: sid };
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+  };
+  const onItemDragOver = (e, sid, iid) => {
+    if (dragRef.current.type !== 'item' || dragRef.current.itemId === iid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.outline = '2px dashed var(--color-primary)';
+  };
+  const onItemDragLeave = (e) => { e.currentTarget.style.outline = ''; };
+  const onItemDrop = (e, targetSid, targetIid) => {
+    e.currentTarget.style.outline = '';
+    if (dragRef.current.type !== 'item') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = sections.map(s => ({ ...s, items: [...s.items] }));
+    const fromSec = next.find(s => s.id === dragRef.current.fromSectionId);
+    const toSec = next.find(s => s.id === targetSid);
+    if (!fromSec || !toSec) return;
+    const fi = fromSec.items.findIndex(i => i.id === dragRef.current.itemId);
+    const ti = toSec.items.findIndex(i => i.id === targetIid);
+    if (fi < 0 || ti < 0) return;
+    const [m] = fromSec.items.splice(fi, 1);
+    toSec.items.splice(ti, 0, m);
+    dragRef.current = { type: null };
+    save(next);
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <div className="page-title">채용 안내</div>
+          <div className="page-desc">전형별 안내 문자·이메일 템플릿 — 헤더를 드래그하여 순서 변경</div>
+        </div>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        {sections.map(s => (
+          <div key={s.id}
+            style={{ background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-sm)', overflow:'hidden' }}
+            onDragOver={e => onSectionDragOver(e, s.id)}
+            onDragLeave={onSectionDragLeave}
+            onDrop={e => onSectionDrop(e, s.id)}
+          >
+            {/* Section header – draggable */}
+            <div
+              draggable
+              onDragStart={e => onSectionDragStart(e, s.id)}
+              style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px', background:'var(--color-surface-offset)', borderBottom:'1px solid var(--color-divider)', cursor:'grab', userSelect:'none' }}
+            >
+              <span style={{ color:'var(--color-text-faint)', fontSize:16, letterSpacing:-1 }}>⠿</span>
+              <span style={{ fontWeight:700, fontSize:'var(--text-base)', flex:1 }}>{s.title}</span>
+            </div>
+            {/* Items */}
+            <div style={{ display:'flex', flexDirection:'column', gap:12, padding:12 }}>
+              {s.items.map(item => (
+                <div key={item.id}
+                  style={{ background:'var(--color-surface-2)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-md)', overflow:'hidden' }}
+                  onDragOver={e => onItemDragOver(e, s.id, item.id)}
+                  onDragLeave={onItemDragLeave}
+                  onDrop={e => onItemDrop(e, s.id, item.id)}
+                >
+                  {/* Item header – draggable */}
+                  <div
+                    draggable
+                    onDragStart={e => onItemDragStart(e, s.id, item.id)}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', background:'var(--color-surface)', borderBottom:'1px solid var(--color-divider)', cursor:'grab', userSelect:'none' }}
+                  >
+                    <span style={{ color:'var(--color-text-faint)', fontSize:14, letterSpacing:-1 }}>⠿</span>
+                    <span style={{ fontWeight:600, fontSize:'var(--text-sm)', flex:1 }}>{item.title}</span>
+                  </div>
+                  <div style={{ padding:12 }}>
+                    <textarea
+                      defaultValue={item.content}
+                      onBlur={e => updateContent(item.id, e.target.value)}
+                      style={{ width:'100%', minHeight:130, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:12, fontSize:'var(--text-sm)', lineHeight:1.7, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
+                      onFocus={e => e.target.style.borderColor='var(--color-primary)'}
+                      onBlurCapture={e => e.target.style.borderColor='var(--color-border)'}
+                    />
+                    <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+                      <button
+                        onClick={() => copyItem(item.id)}
+                        style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'4px 14px', borderRadius:'var(--radius-sm)', fontSize:'var(--text-xs)', fontWeight:600, background:'var(--color-primary-light)', color:'var(--color-primary)', border:'none', cursor:'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.background='var(--color-primary)'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='var(--color-primary-light)'; e.currentTarget.style.color='var(--color-primary)'; }}
+                      >복사</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:'#1a1a1a', color:'#fff', padding:'7px 20px', borderRadius:999, fontSize:'var(--text-sm)', fontWeight:600, zIndex:9999, pointerEvents:'none' }}>
+          복사됨! ✓
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    J/D PAGE
 ═══════════════════════════════════════════ */
 const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
@@ -1952,7 +2365,7 @@ export default function ClientApp() {
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', settings:'설정' };
+  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -2004,6 +2417,7 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황<span className="nav-count">{proposals.length}</span></button>
           <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용<span className="nav-count">{costs.length}</span></button>
           <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리<span className="nav-count">{jds.filter(r=>r.status==='진행중').length}</span></button>
+          <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내</button>
           <div className="nav-divider"/>
           <button className={`nav-item ${page==='settings'?'active':''}`} onClick={()=>nav('settings')}><Settings size={16}/> 설정</button>
         </nav>
@@ -2039,6 +2453,7 @@ export default function ClientApp() {
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
+          {page==='guide' && <GuidePage/>}
           {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
         </div>
       </div>
