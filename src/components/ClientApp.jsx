@@ -1733,32 +1733,38 @@ function GuidePage() {
   );
   const [toast, setToast] = useState(false);
   const dragRef = useRef({ type: null, sectionId: null, itemId: null, fromSectionId: null });
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
 
   const save = (next) => {
     setSections(next);
     localStorage.setItem('guideTemplates', JSON.stringify(next));
   };
 
+  const updateSectionTitle = (sid, value) => {
+    save(sectionsRef.current.map(s => s.id === sid ? { ...s, title: value } : s));
+  };
+  const updateItemTitle = (itemId, value) => {
+    save(sectionsRef.current.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, title: value } : i) })));
+  };
   const updateContent = (itemId, value) => {
-    setSections(prev => prev.map(s => ({
-      ...s,
-      items: s.items.map(i => i.id === itemId ? { ...i, content: value } : i)
-    })));
+    save(sectionsRef.current.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, content: value } : i) })));
   };
 
   const copyItem = (itemId) => {
     let txt = '';
-    sections.forEach(s => s.items.forEach(i => { if (i.id === itemId) txt = i.content; }));
+    sectionsRef.current.forEach(s => s.items.forEach(i => { if (i.id === itemId) txt = i.content; }));
     navigator.clipboard.writeText(txt).then(() => {
       setToast(true);
       setTimeout(() => setToast(false), 1800);
     });
   };
 
-  // Section drag
+  // Section drag — only grip icon is draggable
   const onSectionDragStart = (e, sid) => {
     dragRef.current = { type: 'section', sectionId: sid, itemId: null, fromSectionId: null };
     e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
   };
   const onSectionDragOver = (e, sid) => {
     if (dragRef.current.type !== 'section' || dragRef.current.sectionId === sid) return;
@@ -1770,7 +1776,7 @@ function GuidePage() {
     e.currentTarget.style.outline = '';
     if (dragRef.current.type !== 'section' || dragRef.current.sectionId === targetSid) return;
     e.preventDefault();
-    const next = [...sections];
+    const next = [...sectionsRef.current];
     const fi = next.findIndex(s => s.id === dragRef.current.sectionId);
     const ti = next.findIndex(s => s.id === targetSid);
     const [m] = next.splice(fi, 1);
@@ -1779,7 +1785,7 @@ function GuidePage() {
     save(next);
   };
 
-  // Item drag
+  // Item drag — only grip icon is draggable
   const onItemDragStart = (e, sid, iid) => {
     dragRef.current = { type: 'item', sectionId: sid, itemId: iid, fromSectionId: sid };
     e.dataTransfer.effectAllowed = 'move';
@@ -1797,7 +1803,7 @@ function GuidePage() {
     if (dragRef.current.type !== 'item') return;
     e.preventDefault();
     e.stopPropagation();
-    const next = sections.map(s => ({ ...s, items: [...s.items] }));
+    const next = sectionsRef.current.map(s => ({ ...s, items: [...s.items] }));
     const fromSec = next.find(s => s.id === dragRef.current.fromSectionId);
     const toSec = next.find(s => s.id === targetSid);
     if (!fromSec || !toSec) return;
@@ -1810,12 +1816,20 @@ function GuidePage() {
     save(next);
   };
 
+  const titleInputStyle = (bold) => ({
+    flex: 1, border: 'none', background: 'transparent',
+    color: 'var(--color-text)', outline: 'none', cursor: 'text',
+    padding: '0 4px', borderRadius: 3, fontFamily: 'inherit',
+    fontWeight: bold ? 700 : 600,
+    fontSize: bold ? 'var(--text-base)' : 'var(--text-sm)',
+  });
+
   return (
     <div>
       <div className="page-header">
         <div>
           <div className="page-title">채용 안내</div>
-          <div className="page-desc">전형별 안내 문자·이메일 템플릿 — 헤더를 드래그하여 순서 변경</div>
+          <div className="page-desc">전형별 안내 문자·이메일 템플릿 — ⠿ 아이콘을 드래그하여 순서 변경, 제목 클릭하여 수정</div>
         </div>
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -1826,14 +1840,21 @@ function GuidePage() {
             onDragLeave={onSectionDragLeave}
             onDrop={e => onSectionDrop(e, s.id)}
           >
-            {/* Section header – draggable */}
-            <div
-              draggable
-              onDragStart={e => onSectionDragStart(e, s.id)}
-              style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px', background:'var(--color-surface-offset)', borderBottom:'1px solid var(--color-divider)', cursor:'grab', userSelect:'none' }}
-            >
-              <span style={{ color:'var(--color-text-faint)', fontSize:16, letterSpacing:-1 }}>⠿</span>
-              <span style={{ fontWeight:700, fontSize:'var(--text-base)', flex:1 }}>{s.title}</span>
+            {/* Section header */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px', background:'var(--color-surface-offset)', borderBottom:'1px solid var(--color-divider)' }}>
+              <span
+                draggable
+                onDragStart={e => onSectionDragStart(e, s.id)}
+                style={{ color:'var(--color-text-faint)', fontSize:16, letterSpacing:-1, cursor:'grab', flexShrink:0, lineHeight:1 }}
+              >⠿</span>
+              <input
+                key={s.id + '-title'}
+                defaultValue={s.title}
+                onBlur={e => updateSectionTitle(s.id, e.target.value)}
+                onFocus={e => e.target.style.background='var(--color-primary-light)'}
+                onBlurCapture={e => e.target.style.background='transparent'}
+                style={titleInputStyle(true)}
+              />
             </div>
             {/* Items */}
             <div style={{ display:'flex', flexDirection:'column', gap:12, padding:12 }}>
@@ -1844,17 +1865,25 @@ function GuidePage() {
                   onDragLeave={onItemDragLeave}
                   onDrop={e => onItemDrop(e, s.id, item.id)}
                 >
-                  {/* Item header – draggable */}
-                  <div
-                    draggable
-                    onDragStart={e => onItemDragStart(e, s.id, item.id)}
-                    style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', background:'var(--color-surface)', borderBottom:'1px solid var(--color-divider)', cursor:'grab', userSelect:'none' }}
-                  >
-                    <span style={{ color:'var(--color-text-faint)', fontSize:14, letterSpacing:-1 }}>⠿</span>
-                    <span style={{ fontWeight:600, fontSize:'var(--text-sm)', flex:1 }}>{item.title}</span>
+                  {/* Item header */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', background:'var(--color-surface)', borderBottom:'1px solid var(--color-divider)' }}>
+                    <span
+                      draggable
+                      onDragStart={e => onItemDragStart(e, s.id, item.id)}
+                      style={{ color:'var(--color-text-faint)', fontSize:14, letterSpacing:-1, cursor:'grab', flexShrink:0, lineHeight:1 }}
+                    >⠿</span>
+                    <input
+                      key={item.id + '-title'}
+                      defaultValue={item.title}
+                      onBlur={e => updateItemTitle(item.id, e.target.value)}
+                      onFocus={e => e.target.style.background='var(--color-primary-light)'}
+                      onBlurCapture={e => e.target.style.background='transparent'}
+                      style={titleInputStyle(false)}
+                    />
                   </div>
                   <div style={{ padding:12 }}>
                     <textarea
+                      key={item.id + '-content'}
                       defaultValue={item.content}
                       onBlur={e => updateContent(item.id, e.target.value)}
                       style={{ width:'100%', minHeight:130, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:12, fontSize:'var(--text-sm)', lineHeight:1.7, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
@@ -1876,7 +1905,6 @@ function GuidePage() {
           </div>
         ))}
       </div>
-      {/* Toast */}
       {toast && (
         <div style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:'#1a1a1a', color:'#fff', padding:'7px 20px', borderRadius:999, fontSize:'var(--text-sm)', fontWeight:600, zIndex:9999, pointerEvents:'none' }}>
           복사됨! ✓
