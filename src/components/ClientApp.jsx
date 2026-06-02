@@ -1992,7 +1992,12 @@ const INITIAL_ATTEND_MISS = [
 ═══════════════════════════════════════════ */
 function countDates(str) {
   if (!str?.trim()) return 0;
-  return str.trim().split(/[\s,]+/).filter(Boolean).length;
+  // 공백·쉼표로 분리 후 날짜처럼 보이는 토큰만 카운트
+  // 인정: 9/1, 10/23(메모), 6, 7 (월 생략된 일자)
+  // 제외: 연차?, 지각, 5분 등 텍스트 주석
+  return str.trim().split(/[\s,]+/).filter(t =>
+    /^\d+\/\d+/.test(t) || /^\d{1,2}$/.test(t)
+  ).length;
 }
 function getQuarterKey(ym) {
   const [year, month] = ym.split('-').map(Number);
@@ -2011,7 +2016,11 @@ const WARN_TEMPLATE = (name, ym, dates, count) => {
    ATTENDANCE MISS PAGE (근태 누락)
 ═══════════════════════════════════════════ */
 function AttendanceMissPage() {
-  const [records, setRecords] = useState(() => { const s = localStorage.getItem('attendMiss'); return (s && s !== '[]') ? JSON.parse(s) : INITIAL_ATTEND_MISS; });
+  const [records, setRecords] = useState(() => {
+    const s = localStorage.getItem('attendMiss');
+    const data = (s && s !== '[]') ? JSON.parse(s) : INITIAL_ATTEND_MISS;
+    return data.map(r => ({ ...r, count: countDates(r.dates) }));
+  });
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { name:100, dates:350 }; } catch { return { name:100, dates:350 }; } });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [warnModal, setWarnModal] = useState(null);
