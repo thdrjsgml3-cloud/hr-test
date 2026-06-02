@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { Chart, registerables } from 'chart.js';
-import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList, Users, BookText } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
 import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs } from '@/lib/sheets';
@@ -636,6 +636,9 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
           </div>
         ))}
       </div>
+
+      {/* 입퇴사자 현황 */}
+      <WorkerSummaryCard/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -1915,6 +1918,391 @@ function GuidePage() {
 }
 
 /* ═══════════════════════════════════════════
+   WORKER PAGE (근로자명부)
+═══════════════════════════════════════════ */
+const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
+const WORKER_SHEETS = [
+  {sheetName:'퍼플_재직',    company:'퍼플',    status:'재직'},
+  {sheetName:'퍼플_퇴직',    company:'퍼플',    status:'퇴직'},
+  {sheetName:'영업본부_명부', company:'영업본부', status:'재직'},
+  {sheetName:'영업본부_해촉', company:'영업본부', status:'퇴직'},
+  {sheetName:'그랑디르_재직', company:'그랑디르', status:'재직'},
+  {sheetName:'그랑디르_퇴직', company:'그랑디르', status:'퇴직'},
+  {sheetName:'교도리_재직',  company:'교도리',  status:'재직'},
+  {sheetName:'교도리_퇴직',  company:'교도리',  status:'퇴직'},
+  {sheetName:'코브_재직',    company:'코브',    status:'재직'},
+  {sheetName:'코브_퇴직',    company:'코브',    status:'퇴직'},
+  {sheetName:'PZPZ_재직',   company:'PZPZ',   status:'재직'},
+  {sheetName:'PZPZ_퇴직',   company:'PZPZ',   status:'퇴직'},
+];
+const WORKER_COMPANIES = ['퍼플','영업본부','그랑디르','교도리','코브','PZPZ'];
+const _workerCache = {};
+
+async function fetchWorkerSheet(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  return parseGvizResponse(text);
+}
+
+function WorkerPage() {
+  const [allData, setAllData] = useState(_workerCache.__loaded ? _workerCache : null);
+  const [loading, setLoading] = useState(!_workerCache.__loaded);
+  const [loadError, setLoadError] = useState(null);
+  const [selCompany, setSelCompany] = useState('퍼플');
+  const [selStatus, setSelStatus] = useState('재직');
+  const [search, setSearch] = useState('');
+
+  const loadAll = useCallback(async () => {
+    setLoading(true); setLoadError(null);
+    try {
+      await Promise.all(WORKER_SHEETS.map(async (s) => {
+        const key = `${s.company}_${s.status}`;
+        try {
+          const table = await fetchWorkerSheet(s.sheetName);
+          // Take columns from index 2 (C) up to index 9 (J)
+          const rawCols = table.cols.slice(2, 10);
+          const headers = rawCols.map(c => (c.label || '').trim()).filter(Boolean);
+          const colCount = headers.length;
+          const rows = table.rows.map(r =>
+            r.c.slice(2, 2 + colCount).map(cell => extractCellValue(cell) ?? '')
+          ).filter(row => row.some(v => String(v).trim() !== ''));
+          _workerCache[key] = { headers, rows };
+        } catch (e) {
+          _workerCache[key] = { headers: [], rows: [], error: e.message };
+        }
+      }));
+      _workerCache.__loaded = true;
+      setAllData({ ..._workerCache });
+    } catch (e) {
+      setLoadError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (!_workerCache.__loaded) loadAll(); }, [loadAll]);
+
+  const key = `${selCompany}_${selStatus}`;
+  const cur = (allData && allData[key]) || { headers:[], rows:[] };
+  const filtered = search
+    ? cur.rows.filter(row => row.some(v => String(v).toLowerCase().includes(search.toLowerCase())))
+    : cur.rows;
+
+  const statusLabel = (company, status) =>
+    company === '영업본부' ? (status === '재직' ? '명부' : '해촉') : status;
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <div className="page-title">근로자명부</div>
+          <div className="page-desc">사업자별 재직·퇴직 근로자 현황 — 구글 시트 연동</div>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={loadAll} disabled={loading}
+          style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+          {loading ? '로딩 중...' : '새로고침'}
+        </button>
+      </div>
+
+      {loadError && (
+        <div style={{ background:'var(--color-error-light)', color:'var(--color-error)', padding:'10px 16px', borderRadius:'var(--radius-md)', marginBottom:12, fontSize:'var(--text-sm)' }}>
+          ⚠ 데이터 로딩 오류: {loadError}
+        </div>
+      )}
+
+      {/* Company tabs */}
+      <div className="tabs" style={{ marginBottom:12 }}>
+        {WORKER_COMPANIES.map(c => {
+          const reCount = _workerCache[`${c}_재직`]?.rows.length ?? 0;
+          return (
+            <button key={c} className={`tab-btn ${selCompany===c?'active':''}`} onClick={()=>setSelCompany(c)}>
+              {c}{reCount > 0 && <span className="nav-count" style={{ marginLeft:4 }}>{reCount}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Status toggle */}
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
+        {['재직','퇴직'].map(st => (
+          <button key={st}
+            className="btn btn-sm"
+            style={{ background: selStatus===st ? 'var(--color-primary)' : 'var(--color-surface-offset)', color: selStatus===st ? '#fff' : 'var(--color-text-muted)', padding:'4px 14px' }}
+            onClick={()=>setSelStatus(st)}>
+            {statusLabel(selCompany, st)}
+            {_workerCache[`${selCompany}_${st}`]?.rows.length > 0 && (
+              <span style={{ marginLeft:4, fontSize:10 }}>({_workerCache[`${selCompany}_${st}`].rows.length})</span>
+            )}
+          </button>
+        ))}
+        <div className="search-wrap" style={{ marginLeft:'auto' }}>
+          <Search size={14}/>
+          <input className="search-input" placeholder="검색..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        </div>
+        <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', whiteSpace:'nowrap' }}>
+          {loading ? '로딩 중...' : `${filtered.length}명`}
+        </span>
+      </div>
+
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width:40, textAlign:'center' }}>No.</th>
+              {cur.headers.map((h,i) => <th key={i}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !allData && (
+              <tr><td colSpan={cur.headers.length+1} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>구글 시트에서 데이터를 불러오는 중...</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={cur.headers.length+1} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>데이터가 없습니다.</td></tr>
+            )}
+            {filtered.map((row, ri) => (
+              <tr key={ri}>
+                <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
+                {row.map((cell, ci) => <td key={ci}>{String(cell ?? '')}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─── 대시보드용 입퇴사자 현황 카드 ─── */
+function WorkerSummaryCard() {
+  const [counts, setCounts] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (_workerCache.__loaded) {
+      buildCounts();
+    } else {
+      // 캐시 없으면 카운트 전용으로 로드
+      setLoading(true);
+      Promise.all(WORKER_SHEETS.map(async s => {
+        const key = `${s.company}_${s.status}`;
+        if (!_workerCache[key]) {
+          try {
+            const table = await fetchWorkerSheet(s.sheetName);
+            const rawCols = table.cols.slice(2, 10);
+            const headers = rawCols.map(c=>(c.label||'').trim()).filter(Boolean);
+            const colCount = headers.length;
+            const rows = table.rows.map(r => r.c.slice(2, 2+colCount).map(cell=>extractCellValue(cell)??'')).filter(row=>row.some(v=>String(v).trim()!==''));
+            _workerCache[key] = { headers, rows };
+          } catch { _workerCache[key] = { headers:[], rows:[] }; }
+        }
+      })).then(() => {
+        _workerCache.__loaded = true;
+        buildCounts();
+        setLoading(false);
+      });
+    }
+  }, []);
+
+  const buildCounts = () => {
+    const c = {};
+    WORKER_COMPANIES.forEach(co => {
+      c[co] = { 재직: (_workerCache[`${co}_재직`]?.rows.length ?? 0), 퇴직: (_workerCache[`${co}_퇴직`]?.rows.length ?? 0) };
+    });
+    setCounts(c);
+  };
+
+  if (loading) return (
+    <div className="card" style={{ marginBottom:20 }}>
+      <div className="card-title">입퇴사자 현황</div>
+      <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', padding:'16px 0' }}>구글 시트에서 데이터를 불러오는 중...</div>
+    </div>
+  );
+
+  if (!counts) return null;
+
+  const totalActive = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.재직||0)),0);
+  const totalLeft   = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.퇴직||0)),0);
+
+  return (
+    <div className="card" style={{ marginBottom:20 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+        <div className="card-title" style={{ marginBottom:0 }}>입퇴사자 현황</div>
+        <div style={{ display:'flex', gap:8, fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+          <span>전체 재직 <strong style={{ color:'var(--color-success)' }}>{totalActive}명</strong></span>
+          <span>전체 퇴직 <strong style={{ color:'var(--color-text-muted)' }}>{totalLeft}명</strong></span>
+        </div>
+      </div>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
+        {WORKER_COMPANIES.map(co => {
+          const active = counts[co]?.재직 || 0;
+          const left   = counts[co]?.퇴직 || 0;
+          const total  = active + left;
+          const pct    = total > 0 ? Math.round((active/total)*100) : 0;
+          return (
+            <div key={co} style={{ flex:'1 1 130px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
+              <div style={{ display:'flex', gap:6, marginBottom:6 }}>
+                <span className="badge badge-success">재직 {active}</span>
+                <span className="badge badge-gray">퇴직 {left}</span>
+              </div>
+              {total > 0 && (
+                <div style={{ background:'var(--color-divider)', borderRadius:3, height:4, overflow:'hidden' }}>
+                  <div style={{ width:`${pct}%`, height:'100%', background:'var(--color-success)', borderRadius:3 }}/>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   MEETING LOG PAGE (면담일지)
+═══════════════════════════════════════════ */
+function MeetingLogPage() {
+  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('meetingLog') || '[]'));
+  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('meetingLogColW')) || { date:100, dept:90, name:90, content:300, manager:90 }; } catch { return { date:100, dept:90, name:90, content:300, manager:90 }; } });
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [viewPopup, setViewPopup] = useState(null);
+  const idRef = useRef(1);
+  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r=>r.id),0)+1 : 1; }, []);
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = () => setCtxMenu(null);
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [ctxMenu]);
+
+  const save = (next) => { setRecords(next); localStorage.setItem('meetingLog', JSON.stringify(next)); };
+
+  const startColResize = (e, col) => {
+    e.preventDefault();
+    let lastX = e.clientX;
+    const onMove = (ev) => {
+      const delta = ev.clientX - lastX; lastX = ev.clientX;
+      setColW(prev => ({ ...prev, [col]: Math.max(60, (prev[col]??60) + delta) }));
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setColW(prev => { localStorage.setItem('meetingLogColW', JSON.stringify(prev)); return prev; });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const addRow = () => {
+    const d = new Date(); const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    save([...records, { id:idRef.current++, date:dt, dept:'', name:'', content:'', manager:'', memo:'' }]);
+  };
+  const insertRow = (refId, pos) => {
+    const ref = records.find(r=>r.id===refId);
+    const d = new Date(); const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const newRow = { id:idRef.current++, date:ref?.date||dt, dept:ref?.dept||'', name:'', content:'', manager:'', memo:'' };
+    const idx = records.findIndex(r=>r.id===refId);
+    const next = [...records]; next.splice(pos==='above'?idx:idx+1, 0, newRow);
+    save(next); setCtxMenu(null);
+  };
+  const update = (id, field, value) => save(records.map(r => r.id!==id ? r : {...r,[field]:value}));
+  const del = (id) => { if(confirm('삭제하시겠습니까?')) { save(records.filter(r=>r.id!==id)); setCtxMenu(null); } };
+
+  const openContent = (e, id) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setViewPopup({ id, x:Math.min(rect.left, window.innerWidth-430), y:Math.min(rect.bottom+4, window.innerHeight-300) });
+  };
+  const vpRec = viewPopup ? records.find(r=>r.id===viewPopup.id) : null;
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><div className="page-title">면담일지</div><div className="page-desc">임직원 면담 기록 관리</div></div>
+        <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
+      </div>
+      <div className="table-wrap">
+        <table className="data-table" style={{ tableLayout:'fixed', width:'100%' }}>
+          <colgroup>
+            <col style={{ width:22 }}/>
+            <col style={{ width:colW.date }}/>
+            <col style={{ width:colW.dept }}/>
+            <col style={{ width:colW.name }}/>
+            <col style={{ width:colW.content }}/>
+            <col style={{ width:130 }}/>
+            <col style={{ width:colW.manager }}/>
+            <col style={{ width:50 }}/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ padding:0 }}></th>
+              <th style={{ position:'relative' }}>면담일<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'date')}/></th>
+              <th style={{ position:'relative' }}>소속<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'dept')}/></th>
+              <th style={{ position:'relative' }}>이름<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'name')}/></th>
+              <th style={{ position:'relative' }}>면담 내용<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'content')}/></th>
+              <th style={{ textAlign:'center' }}>상세 내용</th>
+              <th style={{ position:'relative' }}>담당자<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'manager')}/></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.length===0 && <tr><td colSpan={8} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>면담 기록이 없습니다.</td></tr>}
+            {records.map(r => (
+              <tr key={r.id}>
+                <td className="row-handle-cell">
+                  <div className="row-handle-dot" onClick={e=>{ e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
+                </td>
+                <td><input className="inline-input" value={r.date} onChange={e=>update(r.id,'date',e.target.value)} placeholder="YYYY-MM-DD"/></td>
+                <td><input className="inline-input" value={r.dept||''} onChange={e=>update(r.id,'dept',e.target.value)} placeholder="소속"/></td>
+                <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
+                <td><input className="inline-input" value={r.content} onChange={e=>update(r.id,'content',e.target.value)} placeholder="간략 내용"/></td>
+                <td style={{ textAlign:'center' }}>
+                  <button className="btn btn-sm" style={{ background:r.memo?'var(--color-blue-light)':'var(--color-surface-offset)', color:r.memo?'var(--color-blue)':'var(--color-text-faint)', padding:'3px 10px', fontSize:'var(--text-xs)' }} onClick={e=>openContent(e,r.id)}>
+                    {r.memo?'내용보기':'내용입력'}
+                  </button>
+                </td>
+                <td><input className="inline-input" value={r.manager||''} onChange={e=>update(r.id,'manager',e.target.value)} placeholder="담당자"/></td>
+                <td><button className="btn btn-sm" style={{color:'var(--color-error)',opacity:0.6}} onClick={()=>del(r.id)}>삭제</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {ctxMenu && (
+        <div className="row-context-menu" style={{ left:ctxMenu.x, top:ctxMenu.y }} onClick={e=>e.stopPropagation()}>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'above')}>↑ 위에 행 추가</button>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'below')}>↓ 아래에 행 추가</button>
+          <div className="rcm-divider"/>
+          <button className="rcm-btn danger" onClick={()=>del(ctxMenu.id)}>✕ 행 삭제</button>
+        </div>
+      )}
+
+      {viewPopup && vpRec && (
+        <>
+          <div style={{ position:'fixed', inset:0, zIndex:999 }} onClick={()=>setViewPopup(null)}/>
+          <div style={{ position:'fixed', left:viewPopup.x, top:viewPopup.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>면담 상세 내용 — {vpRec.name||'(이름 없음)'}</div>
+            <textarea
+              value={vpRec.memo||''}
+              onChange={e=>update(vpRec.id,'memo',e.target.value)}
+              placeholder="면담 상세 내용을 입력하세요..."
+              style={{ width:'100%', minHeight:160, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
+            />
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:6, marginTop:8 }}>
+              {vpRec.memo && <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)' }} onClick={()=>navigator.clipboard.writeText(vpRec.memo)}>복사</button>}
+              <button className="btn btn-sm btn-ghost" onClick={()=>setViewPopup(null)}>닫기</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    ATTENDANCE INITIAL DATA
 ═══════════════════════════════════════════ */
 const INITIAL_ATTEND_MISS = [
@@ -2997,7 +3385,7 @@ export default function ClientApp() {
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
+  const pageTitles = { dashboard:'대시보드', worker:'근로자명부', meeting:'면담일지', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -3042,6 +3430,10 @@ export default function ClientApp() {
         <nav className="sidebar-nav">
           <div className="nav-section-label">메인</div>
           <button className={`nav-item ${page==='dashboard'?'active':''}`} onClick={()=>nav('dashboard')}><LayoutDashboard size={16}/> 대시보드</button>
+          <div className="nav-divider"/>
+          <div className="nav-section-label">임직원 관리</div>
+          <button className={`nav-item ${page==='worker'?'active':''}`} onClick={()=>nav('worker')}><Users size={16}/> 근로자명부</button>
+          <button className={`nav-item ${page==='meeting'?'active':''}`} onClick={()=>nav('meeting')}><BookText size={16}/> 면담일지</button>
           <div className="nav-divider"/>
           <div className="nav-section-label">채용 관리</div>
           <button className={`nav-item ${page==='interview'?'active':''}`} onClick={()=>nav('interview')}><CalendarCheck size={16}/> 면접 일정<span className="nav-count">{interviews.length}</span></button>
@@ -3090,6 +3482,8 @@ export default function ClientApp() {
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
+          {page==='worker' && <WorkerPage/>}
+          {page==='meeting' && <MeetingLogPage/>}
           {page==='guide' && <GuidePage/>}
           {page==='attend-miss' && <AttendanceMissPage/>}
 
