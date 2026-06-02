@@ -2315,6 +2315,28 @@ function BonsaDemographicsChart() {
     const textColor = isDark ? '#888785' : '#6b6b6b';
     const bg = isDark ? '#1c1b19' : '#ffffff';
 
+    const makeLegend = (data, total) => ({
+      position: 'right',
+      labels: {
+        font: { size: 11 },
+        color: textColor,
+        boxWidth: 12,
+        padding: 8,
+        generateLabels: (chart) =>
+          chart.data.labels.map((label, i) => {
+            const val = chart.data.datasets[0].data[i];
+            const p = total > 0 ? Math.round(val / total * 100) : 0;
+            return {
+              text: `${label}  ${val} (${p}%)`,
+              fillStyle: chart.data.datasets[0].backgroundColor[i],
+              strokeStyle: chart.data.datasets[0].backgroundColor[i],
+              hidden: false,
+              index: i,
+            };
+          }),
+      },
+    });
+
     if (ageRef.current) {
       if (ageChart.current) ageChart.current.destroy();
       ageChart.current = new Chart(ageRef.current, {
@@ -2324,7 +2346,7 @@ function BonsaDemographicsChart() {
           datasets: [{ data:[a20,a30,a40,a50], backgroundColor: CHART_COLORS, borderWidth:2, borderColor:bg }]
         },
         options: { responsive:true, maintainAspectRatio:false,
-          plugins: { legend:{ position:'right', labels:{ font:{size:11}, color:textColor, boxWidth:12 } } }
+          plugins: { legend: makeLegend([a20,a30,a40,a50], total) }
         }
       });
     }
@@ -2337,7 +2359,7 @@ function BonsaDemographicsChart() {
           datasets: [{ data:[male,female], backgroundColor:['#006494','#a12c7b'], borderWidth:2, borderColor:bg }]
         },
         options: { responsive:true, maintainAspectRatio:false,
-          plugins: { legend:{ position:'right', labels:{ font:{size:11}, color:textColor, boxWidth:12 } } }
+          plugins: { legend: makeLegend([male,female], total) }
         }
       });
     }
@@ -2357,21 +2379,11 @@ function BonsaDemographicsChart() {
       <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
         <div style={{ flex:'1 1 160px' }}>
           <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>성별</div>
-          <div style={{ position:'relative', height:120 }}><canvas ref={gndRef}/></div>
+          <div style={{ position:'relative', height:130 }}><canvas ref={gndRef}/></div>
         </div>
-        <div style={{ flex:'2 1 220px' }}>
+        <div style={{ flex:'2 1 280px' }}>
           <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>연령대</div>
-          <div style={{ position:'relative', height:120 }}><canvas ref={ageRef}/></div>
-        </div>
-        <div style={{ flex:'1 1 140px', display:'flex', flexDirection:'column', justifyContent:'center', gap:4, fontSize:11 }}>
-          {[['남',male,'var(--color-blue)'],['여',female,'var(--color-error)'],['20대',a20,'var(--color-primary)'],['30대',a30,'var(--color-success)'],['40대',a40,'var(--color-warning)'],['50대↑',a50,'var(--color-text-muted)']].map(([lb,n,c])=>(
-            <div key={lb} style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <div style={{ width:8, height:8, borderRadius:2, background:c, flexShrink:0 }}/>
-              <span style={{ color:'var(--color-text-muted)', flex:1 }}>{lb}</span>
-              <strong style={{ color:c }}>{n}</strong>
-              <span style={{ color:'var(--color-text-faint)' }}>({pct(n)}%)</span>
-            </div>
-          ))}
+          <div style={{ position:'relative', height:130 }}><canvas ref={ageRef}/></div>
         </div>
       </div>
     </div>
