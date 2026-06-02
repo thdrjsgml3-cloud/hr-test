@@ -1939,10 +1939,11 @@ const WORKER_COMPANIES = ['퍼플','영업본부','그랑디르','교도리','�
 const _workerCache = {};
 
 async function fetchFromGAS(gasUrl) {
-  const res = await fetch(gasUrl);
+  // 서버 프록시 경유 (CORS 우회)
+  const proxyUrl = `/api/gas-proxy?url=${encodeURIComponent(gasUrl)}`;
+  const res = await fetch(proxyUrl);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = await res.text();
-  return JSON.parse(text);
+  return res.json();
 }
 
 function WorkerPage() {
