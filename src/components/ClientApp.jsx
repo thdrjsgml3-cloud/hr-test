@@ -614,6 +614,9 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
         ))}
       </div>
 
+      {/* 입퇴사자 현황 */}
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
+
       {/* 월 필터 */}
       <div className="card" style={{marginBottom:16,padding:'12px 16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
@@ -640,9 +643,6 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
           </div>
         ))}
       </div>
-
-      {/* 입퇴사자 현황 */}
-      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -2287,6 +2287,28 @@ function WorkerPage() {
 }
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
+function ChartWithLegend({ title, canvasRef, items, total, height=120 }) {
+  const pct = n => total > 0 ? Math.round(n/total*100) : 0;
+  return (
+    <div style={{ flex:'1 1 200px' }}>
+      <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:6 }}>{title}</div>
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        <div style={{ position:'relative', height, width:height }}><canvas ref={canvasRef}/></div>
+        <div style={{ display:'flex', flexDirection:'column', gap:5, flex:1 }}>
+          {items.map(({label,value,color}) => (
+            <div key={label} style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <div style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }}/>
+              <span style={{ fontSize:11, color:'var(--color-text-muted)', flex:1, whiteSpace:'nowrap' }}>{label}</span>
+              <span style={{ fontSize:14, fontWeight:700, color }}>{value}</span>
+              <span style={{ fontSize:10, color:'var(--color-text-faint)', marginLeft:2 }}>({pct(value)}%)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BonsaDemographicsChart() {
   const ageRef    = useRef(null);
   const gndRef    = useRef(null);
@@ -2329,34 +2351,21 @@ function BonsaDemographicsChart() {
     const textColor = isDark ? '#888785' : '#6b6b6b';
     const bg = isDark ? '#1c1b19' : '#ffffff';
 
-    const makeLegend = (vals, tot) => ({
-      position: 'right',
-      labels: {
-        font:{ size:11 }, color:textColor, boxWidth:12, padding:8,
-        generateLabels: (chart) =>
-          chart.data.labels.map((label, i) => {
-            const val = chart.data.datasets[0].data[i];
-            const p = tot > 0 ? Math.round(val/tot*100) : 0;
-            return { text:`${label}  ${val} (${p}%)`, fillStyle:chart.data.datasets[0].backgroundColor[i], strokeStyle:chart.data.datasets[0].backgroundColor[i], hidden:false, index:i };
-          }),
-      },
-    });
-
-    const makeChart = (ref, chartRef, labels, data, colors, tot) => {
+    const makeChart = (ref, chartRef, labels, data, colors) => {
       if (!ref.current) return;
       if (chartRef.current) chartRef.current.destroy();
       chartRef.current = new Chart(ref.current, {
         type:'doughnut',
         data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:bg }] },
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:makeLegend(data, tot) } }
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
       });
     };
 
-    makeChart(gndRef, gndChart, ['남','여'], [male,female], ['#006494','#a12c7b'], total);
-    makeChart(ageRef, ageChart, ['20대','30대','40대','50대↑'], [a20,a30,a40,a50], CHART_COLORS, total);
+    makeChart(gndRef, gndChart, ['남','여'], [male,female], ['#006494','#a12c7b']);
+    makeChart(ageRef, ageChart, ['20대','30대','40대','50대↑'], [a20,a30,a40,a50], CHART_COLORS);
     makeChart(tenureRef, tenureChart,
       ['3개월 미만','3~6개월','6~12개월','12~24개월','24~36개월','36개월↑'],
-      [t0,t3,t6,t12,t24,t36], CHART_COLORS, total);
+      [t0,t3,t6,t12,t24,t36], CHART_COLORS);
 
     return () => {
       [gndChart, ageChart, tenureChart].forEach(c => { if (c.current) c.current.destroy(); });
@@ -2369,18 +2378,18 @@ function BonsaDemographicsChart() {
         PPPP 구성원 현황 (재직 {total}명)
       </div>
       <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-        <div style={{ flex:'1 1 160px' }}>
-          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>성별</div>
-          <div style={{ position:'relative', height:130 }}><canvas ref={gndRef}/></div>
-        </div>
-        <div style={{ flex:'2 1 260px' }}>
-          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>연령대</div>
-          <div style={{ position:'relative', height:130 }}><canvas ref={ageRef}/></div>
-        </div>
-        <div style={{ flex:'2 1 280px' }}>
-          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>근속기간</div>
-          <div style={{ position:'relative', height:130 }}><canvas ref={tenureRef}/></div>
-        </div>
+        {/* 성별 */}
+        <ChartWithLegend title="성별" canvasRef={gndRef} height={120}
+          items={[{label:'남',value:male,color:'#006494'},{label:'여',value:female,color:'#a12c7b'}]}
+          total={total}/>
+        {/* 연령대 */}
+        <ChartWithLegend title="연령대" canvasRef={ageRef} height={120}
+          items={[{label:'20대',value:a20,color:CHART_COLORS[0]},{label:'30대',value:a30,color:CHART_COLORS[1]},{label:'40대',value:a40,color:CHART_COLORS[2]},{label:'50대↑',value:a50,color:CHART_COLORS[3]}]}
+          total={total}/>
+        {/* 근속기간 */}
+        <ChartWithLegend title="근속기간" canvasRef={tenureRef} height={120}
+          items={[{label:'3개월 미만',value:t0,color:CHART_COLORS[0]},{label:'3~6개월',value:t3,color:CHART_COLORS[1]},{label:'6~12개월',value:t6,color:CHART_COLORS[2]},{label:'12~24개월',value:t12,color:CHART_COLORS[3]},{label:'24~36개월',value:t24,color:CHART_COLORS[4]},{label:'36개월↑',value:t36,color:CHART_COLORS[5]||'#888'}]}
+          total={total}/>
       </div>
     </div>
   );
