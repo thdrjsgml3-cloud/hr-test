@@ -2036,12 +2036,6 @@ function AttendanceMissPage() {
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
   }, [ctxMenu]);
-  useEffect(() => {
-    if (!viewModal) return;
-    const h = () => setViewModal(null);
-    document.addEventListener('click', h);
-    return () => document.removeEventListener('click', h);
-  }, [viewModal]);
 
   const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); };
 
@@ -2208,19 +2202,22 @@ function AttendanceMissPage() {
       </div>
 
       {viewModal && (
-        <div style={{ position:'fixed', left:viewModal.x, top:viewModal.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
-          <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>발송된 경고 메시지 — {viewModal.record.name}</div>
-          <textarea
-            readOnly
-            value={WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count)}
-            style={{ width:'100%', minHeight:170, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface-offset)', color:'var(--color-text)', resize:'none', fontFamily:'inherit', outline:'none' }}
-          />
-          <div style={{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:8 }}>
-            <button className="btn btn-sm" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }}
-              onClick={()=>navigator.clipboard.writeText(WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count))}>복사</button>
-            <button className="btn btn-sm btn-ghost" onClick={()=>setViewModal(null)}>닫기</button>
+        <>
+          <div style={{ position:'fixed', inset:0, zIndex:999 }} onClick={()=>setViewModal(null)}/>
+          <div style={{ position:'fixed', left:viewModal.x, top:viewModal.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>발송된 경고 메시지 — {viewModal.record.name}</div>
+            <textarea
+              readOnly
+              value={WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count)}
+              style={{ width:'100%', minHeight:170, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface-offset)', color:'var(--color-text)', resize:'none', fontFamily:'inherit', outline:'none' }}
+            />
+            <div style={{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:8 }}>
+              <button className="btn btn-sm" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }}
+                onClick={()=>navigator.clipboard.writeText(WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count))}>복사</button>
+              <button className="btn btn-sm btn-ghost" onClick={()=>setViewModal(null)}>닫기</button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {ctxMenu && (
@@ -2376,11 +2373,11 @@ function OtherWarningPage() {
   const idRef = useRef(1);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r=>r.id),0)+1 : 1; }, []);
   useEffect(() => {
-    if (!msgPopup && !ctxMenu) return;
-    const h = () => { setMsgPopup(null); setCtxMenu(null); };
+    if (!ctxMenu) return;
+    const h = () => setCtxMenu(null);
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
-  }, [msgPopup, ctxMenu]);
+  }, [ctxMenu]);
 
   const save = (next) => { setRecords(next); localStorage.setItem('otherWarn', JSON.stringify(next)); };
 
@@ -2483,19 +2480,22 @@ function OtherWarningPage() {
       )}
 
       {msgPopup && popupRec && (
-        <div style={{ position:'fixed', left:msgPopup.x, top:msgPopup.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
-          <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>전달된 메시지 — {popupRec.name || '(이름 없음)'}</div>
-          <textarea
-            value={popupRec.message||''}
-            onChange={e=>update(popupRec.id,'message',e.target.value)}
-            placeholder="전달된 메시지 내용을 입력하세요..."
-            style={{ width:'100%', minHeight:160, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
-          />
-          <div style={{ display:'flex', justifyContent:'flex-end', gap:6, marginTop:8 }}>
-            {popupRec.message && <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)' }} onClick={()=>navigator.clipboard.writeText(popupRec.message)}>복사</button>}
-            <button className="btn btn-sm btn-ghost" onClick={()=>setMsgPopup(null)}>닫기</button>
+        <>
+          <div style={{ position:'fixed', inset:0, zIndex:999 }} onClick={()=>setMsgPopup(null)}/>
+          <div style={{ position:'fixed', left:msgPopup.x, top:msgPopup.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>전달된 메시지 — {popupRec.name || '(이름 없음)'}</div>
+            <textarea
+              value={popupRec.message||''}
+              onChange={e=>update(popupRec.id,'message',e.target.value)}
+              placeholder="전달된 메시지 내용을 입력하세요..."
+              style={{ width:'100%', minHeight:160, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
+            />
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:6, marginTop:8 }}>
+              {popupRec.message && <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)' }} onClick={()=>navigator.clipboard.writeText(popupRec.message)}>복사</button>}
+              <button className="btn btn-sm btn-ghost" onClick={()=>setMsgPopup(null)}>닫기</button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
