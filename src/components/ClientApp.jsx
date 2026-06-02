@@ -1938,6 +1938,14 @@ const WORKER_SHEETS = [
 const WORKER_COMPANIES = ['퍼플','영업본부','그랑디르','교도리','코브','PZPZ'];
 const _workerCache = {};
 
+function parseGvizResponse(text) {
+  return JSON.parse(text.replace(/^[^\(]*\((.*)\);?$/s, '$1')).table;
+}
+function extractCellValue(cell) {
+  if (!cell) return '';
+  return cell.f != null ? cell.f : (cell.v != null ? cell.v : '');
+}
+
 async function fetchWorkerSheetTable(sheetName) {
   const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
   const res = await fetch(url);
