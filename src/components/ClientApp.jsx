@@ -2036,6 +2036,12 @@ function AttendanceMissPage() {
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
   }, [ctxMenu]);
+  useEffect(() => {
+    if (!viewModal) return;
+    const h = () => setViewModal(null);
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [viewModal]);
 
   const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); };
 
@@ -2187,7 +2193,7 @@ function AttendanceMissPage() {
                     </td>
                     <td style={{ textAlign:'center' }}>
                       {r.checked && (r.warned
-                        ? <span className="badge badge-gray" style={{ cursor:'pointer' }} onClick={()=>setViewModal(r)} title="클릭하여 발송 메시지 확인">발송됨 👁</span>
+                        ? <span className="badge badge-gray" style={{ cursor:'pointer' }} onClick={e=>{ e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setViewModal({record:r, x:Math.min(rect.left,window.innerWidth-430), y:Math.min(rect.bottom+4,window.innerHeight-290)}); }} title="클릭하여 발송 메시지 확인">발송됨 👁</span>
                         : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={()=>openWarn(r)}>경고 안내</button>
                       )}
                     </td>
@@ -2202,23 +2208,17 @@ function AttendanceMissPage() {
       </div>
 
       {viewModal && (
-        <div className="modal-overlay open" onClick={()=>setViewModal(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:560 }}>
-            <div className="modal-header">
-              <div className="modal-title">발송된 경고 메시지 — {viewModal.name}</div>
-              <button className="modal-close" onClick={()=>setViewModal(null)}>✕</button>
-            </div>
-            <div style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', marginBottom:6 }}>발송 당시 내용 (WARN_TEMPLATE 기준)</div>
-            <textarea
-              readOnly
-              value={WARN_TEMPLATE(viewModal.name, viewModal.yearMonth, viewModal.dates, viewModal.count)}
-              style={{ width:'100%', minHeight:200, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:12, fontSize:'var(--text-sm)', lineHeight:1.7, background:'var(--color-surface-offset)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none', marginBottom:12 }}
-            />
-            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button className="btn btn-ghost" onClick={()=>setViewModal(null)}>닫기</button>
-              <button className="btn" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }}
-                onClick={()=>navigator.clipboard.writeText(WARN_TEMPLATE(viewModal.name, viewModal.yearMonth, viewModal.dates, viewModal.count))}>복사</button>
-            </div>
+        <div style={{ position:'fixed', left:viewModal.x, top:viewModal.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
+          <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>발송된 경고 메시지 — {viewModal.record.name}</div>
+          <textarea
+            readOnly
+            value={WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count)}
+            style={{ width:'100%', minHeight:170, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface-offset)', color:'var(--color-text)', resize:'none', fontFamily:'inherit', outline:'none' }}
+          />
+          <div style={{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:8 }}>
+            <button className="btn btn-sm" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }}
+              onClick={()=>navigator.clipboard.writeText(WARN_TEMPLATE(viewModal.record.name, viewModal.record.yearMonth, viewModal.record.dates, viewModal.record.count))}>복사</button>
+            <button className="btn btn-sm btn-ghost" onClick={()=>setViewModal(null)}>닫기</button>
           </div>
         </div>
       )}
@@ -2370,17 +2370,57 @@ function AttendanceWarningPage() {
 ═══════════════════════════════════════════ */
 function OtherWarningPage() {
   const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('otherWarn') || '[]'));
+  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('otherWarnColW')) || { ym:95, name:110, content:260, warningBy:100 }; } catch { return { ym:95, name:110, content:260, warningBy:100 }; } });
+  const [msgPopup, setMsgPopup] = useState(null); // { x, y, id }
+  const [ctxMenu, setCtxMenu] = useState(null);
   const idRef = useRef(1);
-  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
+  useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r=>r.id),0)+1 : 1; }, []);
+  useEffect(() => {
+    if (!msgPopup && !ctxMenu) return;
+    const h = () => { setMsgPopup(null); setCtxMenu(null); };
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [msgPopup, ctxMenu]);
 
   const save = (next) => { setRecords(next); localStorage.setItem('otherWarn', JSON.stringify(next)); };
+
+  const startColResize = (e, col) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = colW[col];
+    const onMove = (ev) => setColW(prev => ({ ...prev, [col]: Math.max(60, startW + ev.clientX - startX) }));
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setColW(prev => { localStorage.setItem('otherWarnColW', JSON.stringify(prev)); return prev; });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   const addRow = () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    save([...records, { id:idRef.current++, yearMonth:ym, name:'', content:'' }]);
+    save([...records, { id:idRef.current++, yearMonth:ym, name:'', content:'', message:'', warningBy:'' }]);
+  };
+  const insertRow = (refId, pos) => {
+    const ref = records.find(r=>r.id===refId);
+    const ym = ref?.yearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const newRow = { id:idRef.current++, yearMonth:ym, name:'', content:'', message:'', warningBy:'' };
+    const idx = records.findIndex(r=>r.id===refId);
+    const next = [...records];
+    next.splice(pos==='above'?idx:idx+1, 0, newRow);
+    save(next);
+    setCtxMenu(null);
   };
   const update = (id, field, value) => save(records.map(r => r.id!==id ? r : {...r,[field]:value}));
-  const del = (id) => { if(confirm('삭제하시겠습니까?')) save(records.filter(r => r.id!==id)); };
+  const del = (id) => { if(confirm('삭제하시겠습니까?')) { save(records.filter(r=>r.id!==id)); setCtxMenu(null); } };
+
+  const openMsg = (e, id) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMsgPopup({ id, x: Math.min(rect.left, window.innerWidth-430), y: Math.min(rect.bottom+4, window.innerHeight-300) });
+  };
+  const popupRec = msgPopup ? records.find(r=>r.id===msgPopup.id) : null;
 
   return (
     <div>
@@ -2389,23 +2429,74 @@ function OtherWarningPage() {
         <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
       </div>
       <div className="table-wrap">
-        <table className="data-table">
+        <table className="data-table" style={{ tableLayout:'fixed', width:'100%' }}>
+          <colgroup>
+            <col style={{ width:22 }}/>
+            <col style={{ width:colW.ym }}/>
+            <col style={{ width:colW.name }}/>
+            <col style={{ width:colW.content }}/>
+            <col style={{ width:130 }}/>
+            <col style={{ width:colW.warningBy }}/>
+            <col style={{ width:50 }}/>
+          </colgroup>
           <thead>
-            <tr><th style={{width:95}}>연/월</th><th>이름</th><th>내용</th><th style={{width:50}}></th></tr>
+            <tr>
+              <th style={{ padding:0 }}></th>
+              <th style={{ position:'relative' }}>연/월<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'ym')}/></th>
+              <th style={{ position:'relative' }}>이름<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'name')}/></th>
+              <th style={{ position:'relative' }}>내용<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'content')}/></th>
+              <th style={{ textAlign:'center' }}>전달된 메시지</th>
+              <th style={{ position:'relative' }}>경고자<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'warningBy')}/></th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
-            {records.length===0 && <tr><td colSpan={4} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>기타 경고 기록이 없습니다.</td></tr>}
+            {records.length===0 && <tr><td colSpan={7} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>기타 경고 기록이 없습니다.</td></tr>}
             {records.map(r => (
               <tr key={r.id}>
-                <td><input className="inline-input" value={r.yearMonth} onChange={e=>update(r.id,'yearMonth',e.target.value)} style={{width:85}}/></td>
+                <td className="row-handle-cell">
+                  <div className="row-handle-dot" onClick={e=>{ e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
+                </td>
+                <td><input className="inline-input" value={r.yearMonth} onChange={e=>update(r.id,'yearMonth',e.target.value)} style={{width:'100%'}}/></td>
                 <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
                 <td><input className="inline-input" value={r.content} onChange={e=>update(r.id,'content',e.target.value)} placeholder="경고 내용"/></td>
+                <td style={{ textAlign:'center' }}>
+                  <button className="btn btn-sm" style={{ background:r.message?'var(--color-blue-light)':'var(--color-surface-offset)', color:r.message?'var(--color-blue)':'var(--color-text-faint)', padding:'3px 10px', fontSize:'var(--text-xs)' }} onClick={e=>openMsg(e,r.id)}>
+                    {r.message ? '내용보기' : '내용입력'}
+                  </button>
+                </td>
+                <td><input className="inline-input" value={r.warningBy||''} onChange={e=>update(r.id,'warningBy',e.target.value)} placeholder="경고자"/></td>
                 <td><button className="btn btn-sm" style={{color:'var(--color-error)',opacity:0.6}} onClick={()=>del(r.id)}>삭제</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {ctxMenu && (
+        <div className="row-context-menu" style={{ left:ctxMenu.x, top:ctxMenu.y }} onClick={e=>e.stopPropagation()}>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'above')}>↑ 위에 행 추가</button>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'below')}>↓ 아래에 행 추가</button>
+          <div className="rcm-divider"/>
+          <button className="rcm-btn danger" onClick={()=>del(ctxMenu.id)}>✕ 행 삭제</button>
+        </div>
+      )}
+
+      {msgPopup && popupRec && (
+        <div style={{ position:'fixed', left:msgPopup.x, top:msgPopup.y, zIndex:1000, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:16, width:420 }} onClick={e=>e.stopPropagation()}>
+          <div style={{ fontWeight:700, marginBottom:6, fontSize:'var(--text-sm)' }}>전달된 메시지 — {popupRec.name || '(이름 없음)'}</div>
+          <textarea
+            value={popupRec.message||''}
+            onChange={e=>update(popupRec.id,'message',e.target.value)}
+            placeholder="전달된 메시지 내용을 입력하세요..."
+            style={{ width:'100%', minHeight:160, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:10, fontSize:'var(--text-sm)', lineHeight:1.65, background:'var(--color-surface)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none' }}
+          />
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:6, marginTop:8 }}>
+            {popupRec.message && <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)' }} onClick={()=>navigator.clipboard.writeText(popupRec.message)}>복사</button>}
+            <button className="btn btn-sm btn-ghost" onClick={()=>setMsgPopup(null)}>닫기</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2889,7 +2980,7 @@ export default function ClientApp() {
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
-  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'attend-warn':'근태 경고 건', 'other-warn':'기타 경고 건', settings:'설정' };
+  const pageTitles = { dashboard:'대시보드', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
 
@@ -2945,7 +3036,7 @@ export default function ClientApp() {
           <div className="nav-divider"/>
           <div className="nav-section-label">근태 관리</div>
           <button className={`nav-item ${page==='attend-miss'?'active':''}`} onClick={()=>nav('attend-miss')}><ClipboardList size={16}/> 근태 누락</button>
-          <button className={`nav-item ${page==='attend-warn'?'active':''}`} onClick={()=>nav('attend-warn')}><AlertTriangle size={16}/> 근태 경고 건</button>
+
           <button className={`nav-item ${page==='other-warn'?'active':''}`} onClick={()=>nav('other-warn')}><Clock size={16}/> 기타 경고 건</button>
           <div className="nav-divider"/>
           <button className={`nav-item ${page==='settings'?'active':''}`} onClick={()=>nav('settings')}><Settings size={16}/> 설정</button>
@@ -2984,7 +3075,7 @@ export default function ClientApp() {
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
           {page==='guide' && <GuidePage/>}
           {page==='attend-miss' && <AttendanceMissPage/>}
-          {page==='attend-warn' && <AttendanceWarningPage/>}
+
           {page==='other-warn' && <OtherWarningPage/>}
           {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
         </div>
