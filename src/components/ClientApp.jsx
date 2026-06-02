@@ -2287,6 +2287,97 @@ function WorkerPage() {
 }
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
+function BonsaDemographicsChart() {
+  const ageRef  = useRef(null);
+  const gndRef  = useRef(null);
+  const ageChart = useRef(null);
+  const gndChart = useRef(null);
+
+  const d = _workerCache['PPPP_재직'];
+  const gIdx = d?.headers?.indexOf('성별') ?? -1;
+  const aIdx = d?.headers?.indexOf('나이') ?? -1;
+  if (!d || (gIdx < 0 && aIdx < 0)) return null;
+
+  const total = d.rows.length;
+  let male=0, female=0, a20=0, a30=0, a40=0, a50=0;
+  d.rows.forEach(r => {
+    const g = String(r[gIdx]||'');
+    if (g==='남') male++; else if (g==='여') female++;
+    const age = parseInt(r[aIdx]||'0');
+    if (age>=50) a50++;
+    else if (age>=40) a40++;
+    else if (age>=30) a30++;
+    else if (age>=20) a20++;
+  });
+
+  useEffect(() => {
+    const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+    const textColor = isDark ? '#888785' : '#6b6b6b';
+    const bg = isDark ? '#1c1b19' : '#ffffff';
+
+    if (ageRef.current) {
+      if (ageChart.current) ageChart.current.destroy();
+      ageChart.current = new Chart(ageRef.current, {
+        type: 'doughnut',
+        data: {
+          labels: ['20대','30대','40대','50대↑'],
+          datasets: [{ data:[a20,a30,a40,a50], backgroundColor: CHART_COLORS, borderWidth:2, borderColor:bg }]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins: { legend:{ position:'right', labels:{ font:{size:11}, color:textColor, boxWidth:12 } } }
+        }
+      });
+    }
+    if (gndRef.current) {
+      if (gndChart.current) gndChart.current.destroy();
+      gndChart.current = new Chart(gndRef.current, {
+        type: 'doughnut',
+        data: {
+          labels: ['남','여'],
+          datasets: [{ data:[male,female], backgroundColor:['#006494','#a12c7b'], borderWidth:2, borderColor:bg }]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins: { legend:{ position:'right', labels:{ font:{size:11}, color:textColor, boxWidth:12 } } }
+        }
+      });
+    }
+    return () => {
+      if (ageChart.current) ageChart.current.destroy();
+      if (gndChart.current) gndChart.current.destroy();
+    };
+  }, [a20,a30,a40,a50,male,female]);
+
+  const pct = n => total>0 ? Math.round(n/total*100) : 0;
+
+  return (
+    <div style={{ marginTop:12, padding:'12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', borderTop:'1px solid var(--color-divider)' }}>
+      <div style={{ fontSize:'var(--text-xs)', fontWeight:600, color:'var(--color-text-muted)', marginBottom:10 }}>
+        PPPP 구성원 현황 (재직 {total}명)
+      </div>
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+        <div style={{ flex:'1 1 160px' }}>
+          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>성별</div>
+          <div style={{ position:'relative', height:120 }}><canvas ref={gndRef}/></div>
+        </div>
+        <div style={{ flex:'2 1 220px' }}>
+          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>연령대</div>
+          <div style={{ position:'relative', height:120 }}><canvas ref={ageRef}/></div>
+        </div>
+        <div style={{ flex:'1 1 140px', display:'flex', flexDirection:'column', justifyContent:'center', gap:4, fontSize:11 }}>
+          {[['남',male,'var(--color-blue)'],['여',female,'var(--color-error)'],['20대',a20,'var(--color-primary)'],['30대',a30,'var(--color-success)'],['40대',a40,'var(--color-warning)'],['50대↑',a50,'var(--color-text-muted)']].map(([lb,n,c])=>(
+            <div key={lb} style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style={{ width:8, height:8, borderRadius:2, background:c, flexShrink:0 }}/>
+              <span style={{ color:'var(--color-text-muted)', flex:1 }}>{lb}</span>
+              <strong style={{ color:c }}>{n}</strong>
+              <span style={{ color:'var(--color-text-faint)' }}>({pct(n)}%)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const COMPANY_GROUPS = [
   { label:'본사', key:'bonsa',  color:'var(--color-primary)', companies:['PPPP'] },
   { label:'영업', key:'sales',  color:'var(--color-blue)',    companies:['영업본부'] },
@@ -2421,45 +2512,7 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
 
       {/* 그룹별 회사 카드 */}
       {/* 본사 선택 시: 성별/연령대 현황 */}
-      {deptFilter === '본사' && loaded && (() => {
-        const d = _workerCache['PPPP_재직'];
-        if (!d?.headers?.length) return null;
-        const gIdx = d.headers.indexOf('성별');
-        const aIdx = d.headers.indexOf('나이');
-        if (gIdx < 0 && aIdx < 0) return null;
-        const total = d.rows.length;
-        let male=0, female=0, a20=0, a30=0, a40=0, a50=0;
-        d.rows.forEach(r => {
-          const g = String(r[gIdx]||'');
-          if (g==='남') male++; else if (g==='여') female++;
-          const age = parseInt(r[aIdx]||'0');
-          if (age>=50) a50++;
-          else if (age>=40) a40++;
-          else if (age>=30) a30++;
-          else if (age>=20) a20++;
-        });
-        const pct = (n) => total > 0 ? Math.round(n/total*100) : 0;
-        const Stat = ({label, n, color}) => (
-          <div style={{ textAlign:'center', flex:'1 1 60px' }}>
-            <div style={{ fontWeight:700, fontSize:16, color }}>{n}</div>
-            <div style={{ fontSize:10, color:'var(--color-text-faint)' }}>{label} ({pct(n)}%)</div>
-          </div>
-        );
-        return (
-          <div style={{ marginTop:12, padding:'10px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', borderTop:'1px solid var(--color-divider)' }}>
-            <div style={{ fontSize:'var(--text-xs)', fontWeight:600, color:'var(--color-text-muted)', marginBottom:8 }}>PPPP 구성원 현황 (재직 {total}명)</div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-              <Stat label="남" n={male} color="var(--color-blue)"/>
-              <Stat label="여" n={female} color="var(--color-error)"/>
-              <div style={{ width:1, background:'var(--color-divider)', margin:'0 4px' }}/>
-              <Stat label="20대" n={a20} color="var(--color-primary)"/>
-              <Stat label="30대" n={a30} color="var(--color-primary)"/>
-              <Stat label="40대" n={a40} color="var(--color-warning)"/>
-              <Stat label="50대↑" n={a50} color="var(--color-text-muted)"/>
-            </div>
-          </div>
-        );
-      })()}
+      {deptFilter === '본사' && loaded && <BonsaDemographicsChart/>}
 
       {visibleGroups.map(group => (
         <div key={group.key} style={{ marginBottom: visibleGroups.length > 1 ? 10 : 0 }}>
