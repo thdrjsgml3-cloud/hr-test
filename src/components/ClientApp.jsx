@@ -2009,9 +2009,36 @@ function WorkerPage() {
       </div>
 
 
+      {/* 시트별 오류 표시 */}
+      {allData && (() => {
+        const errs = WORKER_SHEETS.map(s => {
+          const d = allData[`${s.company}_${s.status}`];
+          return d?.error ? `${s.sheetName}: ${d.error}` : null;
+        }).filter(Boolean);
+        return errs.length > 0 ? (
+          <div style={{ background:'var(--color-error-light)', color:'var(--color-error)', padding:'10px 16px', borderRadius:'var(--radius-md)', marginBottom:12, fontSize:'var(--text-xs)', whiteSpace:'pre-line' }}>
+            ⚠ 일부 시트 로딩 실패:{'\n'}{errs.join('\n')}
+          </div>
+        ) : null;
+      })()}
+      {/* 전체 오류 */}
       {loadError && (
         <div style={{ background:'var(--color-error-light)', color:'var(--color-error)', padding:'10px 16px', borderRadius:'var(--radius-md)', marginBottom:12, fontSize:'var(--text-sm)' }}>
-          ⚠ 로딩 오류: {loadError} — URL을 확인하거나 Apps Script 배포 상태를 점검하세요.
+          ⚠ 로딩 오류: {loadError}
+        </div>
+      )}
+      {/* 진단 버튼 */}
+      {!loading && allData && (
+        <div style={{ marginBottom:8, fontSize:'var(--text-xs)', color:'var(--color-text-faint)', display:'flex', gap:8, alignItems:'center' }}>
+          <span>총 재직: {WORKER_COMPANIES.reduce((s,c)=>s+(_workerCache[`${c}_재직`]?.rows.length||0),0)}명 | 퇴직: {WORKER_COMPANIES.reduce((s,c)=>s+(_workerCache[`${c}_퇴직`]?.rows.length||0),0)}명</span>
+          <button className="btn btn-ghost btn-sm" style={{ fontSize:'var(--text-xs)', padding:'2px 8px' }} onClick={async()=>{
+            try {
+              const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('퍼플_재직')}`;
+              const res = await fetch(url);
+              const text = await res.text();
+              alert(`HTTP ${res.status}\n\n앞 400자:\n${text.slice(0,400)}`);
+            } catch(e) { alert('오류: '+e.message); }
+          }}>진단</button>
         </div>
       )}
 
