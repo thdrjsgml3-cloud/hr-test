@@ -2117,7 +2117,7 @@ function WorkerPage() {
   const [allData, setAllData] = useState(_workerCache.__loaded ? { ..._workerCache } : null);
   const [loading, setLoading] = useState(!_workerCache.__loaded);
   const [loadError, setLoadError] = useState(null);
-  const [selCompany, setSelCompany] = useState('퍼플');
+  const [selCompany, setSelCompany] = useState('PPPP');
   const [selStatus, setSelStatus] = useState('재직');
   const [search, setSearch] = useState('');
 
@@ -2389,18 +2389,65 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
 
       {/* 전월 대비 */}
       {prevDelta && (
-        <div style={{ display:'flex', gap:12, marginBottom:10, padding:'6px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:16, marginBottom:10, padding:'6px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap', alignItems:'center' }}>
           <span style={{ color:'var(--color-text-muted)', fontWeight:600 }}>전월 대비</span>
-          <span>입사 {prevDelta.dActive >= 0 ? `+${prevDelta.dActive}` : prevDelta.dActive}명
-            <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>(전월 {prevDelta.prevActive}→당월 {gTotal.active})</span>
-          </span>
-          <span>퇴사 {prevDelta.dLeft >= 0 ? `+${prevDelta.dLeft}` : prevDelta.dLeft}명
-            <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>(전월 {prevDelta.prevLeft}→당월 {gTotal.left})</span>
-          </span>
+          {[
+            { label:'입사', d: prevDelta.dActive, prev: prevDelta.prevActive, cur: gTotal.active },
+            { label:'퇴사', d: prevDelta.dLeft,   prev: prevDelta.prevLeft,   cur: gTotal.left },
+          ].map(({label, d, prev, cur}) => (
+            <span key={label}>
+              {label}{' '}
+              <strong style={{ color: d > 0 ? 'var(--color-blue)' : d < 0 ? 'var(--color-error)' : 'var(--color-text-muted)' }}>
+                {d > 0 ? '▲' : d < 0 ? '▼' : '━'} {Math.abs(d)}
+              </strong>
+              <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>({prev}→{cur})</span>
+            </span>
+          ))}
         </div>
       )}
 
       {/* 그룹별 회사 카드 */}
+      {/* 본사 선택 시: 성별/연령대 현황 */}
+      {deptFilter === '본사' && loaded && (() => {
+        const d = _workerCache['PPPP_재직'];
+        if (!d?.headers?.length) return null;
+        const gIdx = d.headers.indexOf('성별');
+        const aIdx = d.headers.indexOf('나이');
+        if (gIdx < 0 && aIdx < 0) return null;
+        const total = d.rows.length;
+        let male=0, female=0, a20=0, a30=0, a40=0, a50=0;
+        d.rows.forEach(r => {
+          const g = String(r[gIdx]||'');
+          if (g==='남') male++; else if (g==='여') female++;
+          const age = parseInt(r[aIdx]||'0');
+          if (age>=50) a50++;
+          else if (age>=40) a40++;
+          else if (age>=30) a30++;
+          else if (age>=20) a20++;
+        });
+        const pct = (n) => total > 0 ? Math.round(n/total*100) : 0;
+        const Stat = ({label, n, color}) => (
+          <div style={{ textAlign:'center', flex:'1 1 60px' }}>
+            <div style={{ fontWeight:700, fontSize:16, color }}>{n}</div>
+            <div style={{ fontSize:10, color:'var(--color-text-faint)' }}>{label} ({pct(n)}%)</div>
+          </div>
+        );
+        return (
+          <div style={{ marginTop:12, padding:'10px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', borderTop:'1px solid var(--color-divider)' }}>
+            <div style={{ fontSize:'var(--text-xs)', fontWeight:600, color:'var(--color-text-muted)', marginBottom:8 }}>PPPP 구성원 현황 (재직 {total}명)</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <Stat label="남" n={male} color="var(--color-blue)"/>
+              <Stat label="여" n={female} color="var(--color-error)"/>
+              <div style={{ width:1, background:'var(--color-divider)', margin:'0 4px' }}/>
+              <Stat label="20대" n={a20} color="var(--color-primary)"/>
+              <Stat label="30대" n={a30} color="var(--color-primary)"/>
+              <Stat label="40대" n={a40} color="var(--color-warning)"/>
+              <Stat label="50대↑" n={a50} color="var(--color-text-muted)"/>
+            </div>
+          </div>
+        );
+      })()}
+
       {visibleGroups.map(group => (
         <div key={group.key} style={{ marginBottom: visibleGroups.length > 1 ? 10 : 0 }}>
           {visibleGroups.length > 1 && (
@@ -2439,12 +2486,37 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
 /* ═══════════════════════════════════════════
    MEETING LOG PAGE (면담일지)
 ═══════════════════════════════════════════ */
+const MEETING_SHEET_ID = '1H7r8nPzsNp_suHwBoIlCnc21Wn4-wKWJpOHkUpYA99s';
+const MEETING_GID = '923966650';
+let _meetingCache = null;
+
 function MeetingLogPage() {
   const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('meetingLog') || '[]'));
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('meetingLogColW')) || { date:100, dept:90, name:90, content:300, manager:90 }; } catch { return { date:100, dept:90, name:90, content:300, manager:90 }; } });
   const [ctxMenu, setCtxMenu] = useState(null);
   const [viewPopup, setViewPopup] = useState(null);
+  const [sheetData, setSheetData] = useState(_meetingCache);
+  const [sheetLoading, setSheetLoading] = useState(!_meetingCache);
+  const [sheetError, setSheetError] = useState(null);
+  const [sheetSearch, setSheetSearch] = useState('');
   const idRef = useRef(1);
+
+  useEffect(() => {
+    if (_meetingCache) { setSheetData(_meetingCache); setSheetLoading(false); return; }
+    const url = `https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
+    fetch(url).then(r => r.text()).then(text => {
+      try {
+        const table = parseGvizResponse(text);
+        const headers = table.cols.map(c => (c.label||'').trim()).filter(Boolean);
+        const rows = table.rows.map(r =>
+          r.c.map(cell => String(extractCellValue(cell)??''))
+        ).filter(r => r.some(v => v.trim() !== ''));
+        _meetingCache = { headers, rows };
+        setSheetData(_meetingCache);
+      } catch(e) { setSheetError('데이터 파싱 오류: '+e.message); }
+      setSheetLoading(false);
+    }).catch(e => { setSheetError('로딩 오류: '+e.message); setSheetLoading(false); });
+  }, []);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r=>r.id),0)+1 : 1; }, []);
   useEffect(() => {
     if (!ctxMenu) return;
@@ -2496,9 +2568,58 @@ function MeetingLogPage() {
   return (
     <div>
       <div className="page-header">
-        <div><div className="page-title">면담일지</div><div className="page-desc">임직원 면담 기록 관리</div></div>
-        <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
+        <div><div className="page-title">면담일지</div><div className="page-desc">임직원 면담 기록 — 구글 시트 연동</div></div>
+        <div style={{ display:'flex', gap:6 }}>
+          <button className="btn btn-ghost btn-sm" style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}
+            onClick={()=>{ _meetingCache=null; setSheetData(null); setSheetLoading(true); setSheetError(null);
+              const url=`https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
+              fetch(url).then(r=>r.text()).then(text=>{
+                const table=parseGvizResponse(text);
+                const headers=table.cols.map(c=>(c.label||'').trim()).filter(Boolean);
+                const rows=table.rows.map(r=>r.c.map(cell=>String(extractCellValue(cell)??''))).filter(r=>r.some(v=>v.trim()!==''));
+                _meetingCache={headers,rows}; setSheetData(_meetingCache); setSheetLoading(false);
+              }).catch(e=>{setSheetError(e.message);setSheetLoading(false);});
+            }}>새로고침</button>
+          <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 메모 추가</button>
+        </div>
       </div>
+
+      {/* 구글 시트 면담일지 */}
+      {sheetLoading && <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', marginBottom:16 }}>구글 시트 불러오는 중...</div>}
+      {sheetError && <div style={{ color:'var(--color-error)', fontSize:'var(--text-sm)', marginBottom:16 }}>⚠ {sheetError}</div>}
+      {sheetData && (
+        <div style={{ marginBottom:24 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <div style={{ fontWeight:700, fontSize:'var(--text-sm)' }}>면담 기록 ({sheetData.rows.length}건)</div>
+            <div className="search-wrap">
+              <Search size={13}/>
+              <input className="search-input" placeholder="검색..." value={sheetSearch} onChange={e=>setSheetSearch(e.target.value)} style={{ width:160 }}/>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width:36, textAlign:'center' }}>No.</th>
+                  {sheetData.headers.map((h,i) => <th key={i}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {sheetData.rows
+                  .filter(r => !sheetSearch || r.some(v => v.toLowerCase().includes(sheetSearch.toLowerCase())))
+                  .map((row, ri) => (
+                    <tr key={ri}>
+                      <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
+                      {sheetData.headers.map((_,ci) => <td key={ci}>{row[ci]||''}</td>)}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:8 }}>메모 ({records.length}건)</div>
       <div className="table-wrap">
         <table className="data-table" style={{ tableLayout:'fixed', width:'100%' }}>
           <colgroup>
