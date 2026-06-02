@@ -1915,6 +1915,79 @@ function GuidePage() {
 }
 
 /* ═══════════════════════════════════════════
+   ATTENDANCE INITIAL DATA
+═══════════════════════════════════════════ */
+const INITIAL_ATTEND_MISS = [
+  {id:1, yearMonth:'2025-09',name:'김채영',dates:'9/1 9/4 9/5 9/8 9/16 9/19 9/23',count:7,checked:false,warned:false},
+  {id:2, yearMonth:'2025-09',name:'서수진',dates:'9/23',count:1,checked:false,warned:false},
+  {id:3, yearMonth:'2025-09',name:'한현옥',dates:'9/3',count:1,checked:false,warned:false},
+  {id:4, yearMonth:'2025-09',name:'정아윤',dates:'9/8 9/9 9/10 9/11 9/15 9/16 9/19',count:7,checked:false,warned:false},
+  {id:5, yearMonth:'2025-09',name:'이한모',dates:'9/10',count:1,checked:false,warned:false},
+  {id:6, yearMonth:'2025-09',name:'이송아',dates:'9/29',count:1,checked:false,warned:false},
+  {id:7, yearMonth:'2025-09',name:'이정연',dates:'9/18 9/25',count:2,checked:false,warned:false},
+  {id:8, yearMonth:'2025-09',name:'김은혜',dates:'9/2 9/24',count:2,checked:false,warned:false},
+  {id:9, yearMonth:'2025-09',name:'이해나',dates:'9/5',count:1,checked:false,warned:false},
+  {id:10,yearMonth:'2025-09',name:'김상우',dates:'9/1 9/5 9/9 9/15 9/19',count:5,checked:false,warned:false},
+  {id:11,yearMonth:'2025-09',name:'성대창',dates:'9/2 9/5 9/9 9/12 9/29',count:5,checked:false,warned:false},
+  {id:12,yearMonth:'2025-09',name:'송이',dates:'9/2 9/5 9/9 9/12 9/29',count:5,checked:false,warned:false},
+  {id:13,yearMonth:'2025-09',name:'신지은',dates:'9/19 9/25(6시간?)',count:2,checked:false,warned:false},
+  {id:14,yearMonth:'2025-09',name:'조민범',dates:'9/22(새벽1시??)',count:1,checked:false,warned:false},
+  {id:15,yearMonth:'2025-09',name:'이수빈',dates:'9/30',count:1,checked:false,warned:false},
+  {id:16,yearMonth:'2025-10',name:'김채영',dates:'10/02',count:1,checked:false,warned:false},
+  {id:17,yearMonth:'2025-10',name:'서수진',dates:'10/31',count:1,checked:false,warned:false},
+  {id:18,yearMonth:'2025-10',name:'오은찬',dates:'10/31',count:1,checked:false,warned:false},
+  {id:19,yearMonth:'2025-10',name:'유성정',dates:'10/31',count:1,checked:false,warned:false},
+  {id:20,yearMonth:'2025-10',name:'김하영',dates:'10/13',count:1,checked:false,warned:false},
+  {id:21,yearMonth:'2025-10',name:'이용우',dates:'10/23, 10/28',count:2,checked:false,warned:false},
+  {id:22,yearMonth:'2025-10',name:'곽지원',dates:'10/13, 10/16',count:2,checked:false,warned:false},
+  {id:23,yearMonth:'2025-10',name:'김은혜',dates:'10/29',count:1,checked:false,warned:false},
+  {id:24,yearMonth:'2025-10',name:'송이',dates:'10/10, 10/13, 10/22, 10/29',count:4,checked:false,warned:false},
+  {id:25,yearMonth:'2025-10',name:'성대창',dates:'10/22',count:1,checked:false,warned:false},
+  {id:26,yearMonth:'2025-10',name:'이수빈',dates:'10/16, 10/20, 10/21',count:3,checked:false,warned:false},
+  {id:27,yearMonth:'2025-11',name:'박태린',dates:'11/6',count:1,checked:false,warned:false},
+  {id:28,yearMonth:'2025-11',name:'조성준',dates:'11/13, 11/14, 11/18, 11/27',count:4,checked:false,warned:false},
+  {id:29,yearMonth:'2025-11',name:'김채영',dates:'11/14 연차?, 11/24',count:2,checked:false,warned:false},
+  {id:30,yearMonth:'2025-11',name:'서수진',dates:'11/24',count:1,checked:false,warned:false},
+  {id:31,yearMonth:'2025-11',name:'유성정',dates:'11/14, 11/28',count:2,checked:false,warned:false},
+  {id:32,yearMonth:'2025-11',name:'김지윤',dates:'11/11',count:1,checked:false,warned:false},
+  {id:33,yearMonth:'2025-11',name:'정아윤',dates:'11/26',count:1,checked:false,warned:false},
+  {id:34,yearMonth:'2025-11',name:'곽지원',dates:'11/10',count:1,checked:false,warned:false},
+  {id:35,yearMonth:'2025-11',name:'성대창',dates:'11/3, 11/5, 11/10, 11/11',count:4,checked:false,warned:false},
+  {id:36,yearMonth:'2025-11',name:'송이',dates:'11/3, 11/5, 11/10, 11/11',count:4,checked:false,warned:false},
+  {id:37,yearMonth:'2025-11',name:'성은정',dates:'11/7',count:1,checked:false,warned:false},
+  {id:38,yearMonth:'2025-11',name:'이수빈',dates:'11/12',count:1,checked:false,warned:false},
+  {id:39,yearMonth:'2025-12',name:'유성정',dates:'12/17',count:1,checked:false,warned:false},
+  {id:40,yearMonth:'2025-12',name:'조성준',dates:'12/26',count:1,checked:false,warned:false},
+  {id:41,yearMonth:'2025-12',name:'이선영',dates:'12/31',count:1,checked:false,warned:false},
+  {id:42,yearMonth:'2025-12',name:'이용우',dates:'12/11, 12/23',count:2,checked:false,warned:false},
+  {id:43,yearMonth:'2025-12',name:'박상헌',dates:'12/23',count:1,checked:false,warned:false},
+  {id:44,yearMonth:'2025-12',name:'성대창',dates:'12/3',count:1,checked:false,warned:false},
+  {id:45,yearMonth:'2025-12',name:'이해나',dates:'12/4, 12/17',count:2,checked:false,warned:false},
+  {id:46,yearMonth:'2026-01',name:'연한국',dates:'1/27',count:1,checked:false,warned:false},
+  {id:47,yearMonth:'2026-01',name:'정유빈',dates:'1/29, 1/30',count:2,checked:false,warned:false},
+  {id:48,yearMonth:'2026-01',name:'성대창',dates:'1/6 1/16 1/21 1/22 1/23 1/26 1/30',count:7,checked:false,warned:false},
+  {id:49,yearMonth:'2026-01',name:'송이',dates:'1/6 1/16 1/26 1/30',count:4,checked:false,warned:false},
+  {id:50,yearMonth:'2026-02',name:'김지수',dates:'2/27',count:1,checked:false,warned:false},
+  {id:51,yearMonth:'2026-02',name:'김하영',dates:'2/20',count:1,checked:false,warned:false},
+  {id:52,yearMonth:'2026-02',name:'김은혜',dates:'2/25',count:1,checked:false,warned:false},
+  {id:53,yearMonth:'2026-02',name:'곽지원',dates:'2/27',count:1,checked:false,warned:false},
+  {id:54,yearMonth:'2026-02',name:'이수빈',dates:'2/27',count:1,checked:false,warned:false},
+  {id:55,yearMonth:'2026-02',name:'성대창',dates:'2/3, 2/19, 2/23, 2/27',count:4,checked:false,warned:false},
+  {id:56,yearMonth:'2026-02',name:'송이',dates:'2/19, 2/23, 2/27',count:3,checked:false,warned:false},
+  {id:57,yearMonth:'2026-03',name:'성대창',dates:'3/3, 3/4, 3/5, 3/6, 3/9, 3/10, 3/11, 3/12, 3/13, 3/16, 3/19, 3/20, 3/23, 3/24, 3/25, 3/26, 3/27, 3/30, 3/31',count:19,checked:false,warned:false},
+  {id:58,yearMonth:'2026-03',name:'송이',dates:'3/3, 3/4, 3/5, 3/6, 3/9, 3/10, 3/11, 3/12, 3/13, 3/16, 3/17, 3/19, 3/20, 3/23, 3/24, 3/25, 3/26, 3/27, 3/30, 3/31',count:20,checked:false,warned:false},
+  {id:59,yearMonth:'2026-03',name:'박민우',dates:'3/31 5분 지각',count:1,checked:false,warned:false},
+  {id:60,yearMonth:'2026-05',name:'고재령',dates:'5/4',count:1,checked:false,warned:false},
+  {id:61,yearMonth:'2026-05',name:'김소연',dates:'5/21, 5/28',count:1,checked:false,warned:false},
+  {id:62,yearMonth:'2026-05',name:'서수진',dates:'5/29',count:1,checked:false,warned:false},
+  {id:63,yearMonth:'2026-05',name:'김하영',dates:'5/8',count:1,checked:false,warned:false},
+  {id:64,yearMonth:'2026-05',name:'이형표',dates:'5/13, 5/28',count:2,checked:false,warned:false},
+  {id:65,yearMonth:'2026-05',name:'곽지원',dates:'5/20',count:1,checked:false,warned:false},
+  {id:66,yearMonth:'2026-05',name:'성대창',dates:'5/4, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29',count:19,checked:false,warned:false},
+  {id:67,yearMonth:'2026-05',name:'송이',dates:'5/4, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29',count:19,checked:false,warned:false},
+];
+
+/* ═══════════════════════════════════════════
    ATTENDANCE HELPERS
 ═══════════════════════════════════════════ */
 function countDates(str) {
@@ -1938,7 +2011,7 @@ const WARN_TEMPLATE = (name, ym, dates, count) => {
    ATTENDANCE MISS PAGE (근태 누락)
 ═══════════════════════════════════════════ */
 function AttendanceMissPage() {
-  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('attendMiss') || '[]'));
+  const [records, setRecords] = useState(() => { const s = localStorage.getItem('attendMiss'); return (s && s !== '[]') ? JSON.parse(s) : INITIAL_ATTEND_MISS; });
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { name:100, dates:350 }; } catch { return { name:100, dates:350 }; } });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [warnModal, setWarnModal] = useState(null);
@@ -2024,6 +2097,10 @@ function AttendanceMissPage() {
           <select className="filter-select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
             {['2024','2025','2026','2027'].map(y => <option key={y}>{y}</option>)}
           </select>
+          <button className="btn btn-ghost btn-sm" style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}
+            onClick={() => { if(confirm('기존 데이터를 모두 지우고 초기 데이터로 교체하시겠습니까?')) { localStorage.setItem('attendMiss', JSON.stringify(INITIAL_ATTEND_MISS)); setRecords(INITIAL_ATTEND_MISS); idRef.current = INITIAL_ATTEND_MISS.length + 1; } }}>
+            초기화
+          </button>
           <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
         </div>
       </div>
