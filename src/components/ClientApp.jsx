@@ -532,7 +532,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
   const gridColor = isDark ? '#2a2927' : '#eee';
 
   // 부서 필터
-  const [deptFilter, setDeptFilter] = useState('전체');
+  const [deptFilter, setDeptFilter] = useState('본사');
   // 월 필터
   const [selMonths, setSelMonths] = useState(() => {
     // 기본값: 가장 최근 1개월
@@ -642,7 +642,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
       </div>
 
       {/* 입퇴사자 현황 */}
-      <WorkerSummaryCard selMonths={selMonths}/>
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -1927,15 +1927,10 @@ function GuidePage() {
 const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
 const WORKER_SHEETS = [
   {sheetName:'퍼플_재직',    company:'PPPP',    status:'재직'},
-  {sheetName:'퍼플_퇴직',    company:'PPPP',    status:'퇴직'},
   {sheetName:'영업본부_명부', company:'영업본부', status:'재직'},
-  {sheetName:'영업본부_해촉', company:'영업본부', status:'퇴직'},
   {sheetName:'그랑디르_재직', company:'그랑디르', status:'재직'},
-  {sheetName:'그랑디르_퇴직', company:'그랑디르', status:'퇴직'},
   {sheetName:'교도리_재직',  company:'교도리',  status:'재직'},
-  {sheetName:'교도리_퇴직',  company:'교도리',  status:'퇴직'},
   {sheetName:'PZPZ_재직',   company:'PZPZ',   status:'재직'},
-  {sheetName:'PZPZ_퇴직',   company:'PZPZ',   status:'퇴직'},
 ];
 const WORKER_COMPANIES = ['PPPP','영업본부','그랑디르','교도리','PZPZ'];
 
@@ -2236,19 +2231,11 @@ function WorkerPage() {
         })}
       </div>
 
-      {/* Status toggle */}
+      {/* 재직 인원 수 표시 (탭 없음 - 재직만) */}
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
-        {['재직','퇴직'].map(st => (
-          <button key={st}
-            className="btn btn-sm"
-            style={{ background: selStatus===st ? 'var(--color-primary)' : 'var(--color-surface-offset)', color: selStatus===st ? '#fff' : 'var(--color-text-muted)', padding:'4px 14px' }}
-            onClick={()=>setSelStatus(st)}>
-            {statusLabel(selCompany, st)}
-            {_workerCache[`${selCompany}_${st}`]?.rows.length > 0 && (
-              <span style={{ marginLeft:4, fontSize:10 }}>({_workerCache[`${selCompany}_${st}`].rows.length})</span>
-            )}
-          </button>
-        ))}
+        <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', padding:'4px 0' }}>
+          {statusLabel(selCompany, '재직')} {_workerCache[`${selCompany}_재직`]?.rows.length ?? 0}명
+        </span>
         <div className="search-wrap" style={{ marginLeft:'auto' }}>
           <Search size={14}/>
           <input className="search-input" placeholder="검색..." value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -2293,10 +2280,9 @@ const COMPANY_GROUPS = [
   { label:'F&B', key:'fnb',    color:'var(--color-warning)',  companies:['그랑디르','교도리','PZPZ'] },
 ];
 
-function WorkerSummaryCard({ selMonths }) {
+function WorkerSummaryCard({ selMonths, deptFilter }) {
   const [loaded, setLoaded] = useState(_workerCache.__loaded);
   const [loading, setLoading] = useState(!_workerCache.__loaded);
-  const [selGroup, setSelGroup] = useState('bonsa'); // 기본: 본사
 
   useEffect(() => {
     if (_workerCache.__loaded) { setLoaded(true); setLoading(false); return; }
@@ -2343,13 +2329,40 @@ function WorkerSummaryCard({ selMonths }) {
     return { active, left };
   };
 
-  const curGroup = COMPANY_GROUPS.find(g => g.key === selGroup) || COMPANY_GROUPS[0];
-  const visibleCompanies = curGroup.companies;
+  // deptFilter → 표시할 그룹
+  const deptToGroups = {
+    '전체':  COMPANY_GROUPS,
+    '본사':  COMPANY_GROUPS.filter(g => g.key === 'bonsa'),
+    '영업':  COMPANY_GROUPS.filter(g => g.key === 'sales'),
+    'F&B':  COMPANY_GROUPS.filter(g => g.key === 'fnb'),
+  };
+  const visibleGroups = deptToGroups[deptFilter] || COMPANY_GROUPS;
+  const visibleCompanies = visibleGroups.flatMap(g => g.companies);
 
   const gTotal = visibleCompanies.reduce((acc, co) => {
     const c = getCompanyCounts(co);
     return { active: acc.active+c.active, left: acc.left+c.left };
   }, { active:0, left:0 });
+
+  // 전월 대비 (1개월 선택 시)
+  let prevDelta = null;
+  if (!isAllMonths && selArr.length === 1) {
+    const [y, m] = selArr[0].split('-').map(Number);
+    const prevY = m === 1 ? y-1 : y;
+    const prevM = m === 1 ? 12 : m-1;
+    const prevYM = `${prevY}-${String(prevM).padStart(2,'0')}`;
+    const prevActive = visibleCompanies.reduce((s, co) => {
+      const d = _workerCache[`${co}_재직`];
+      const col = d?.headers?.findIndex(h => h.includes('입사')||h.includes('위촉')) ?? -1;
+      return s + (col>=0 ? (d?.rows||[]).filter(r => String(r[col]||'').startsWith(prevYM)).length : 0);
+    }, 0);
+    const prevLeft = visibleCompanies.reduce((s, co) => {
+      const d = _workerCache[`${co}_퇴직`];
+      const col = d?.headers?.findIndex(h => h.includes('퇴사')||h.includes('해촉일')) ?? -1;
+      return s + (col>=0 ? (d?.rows||[]).filter(r => String(r[col]||'').startsWith(prevYM)).length : 0);
+    }, 0);
+    prevDelta = { prevYM, prevActive, prevLeft, dActive: gTotal.active-prevActive, dLeft: gTotal.left-prevLeft };
+  }
 
   const monthLabel = !isAllMonths
     ? selArr.length === 1
@@ -2370,46 +2383,55 @@ function WorkerSummaryCard({ selMonths }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
         <div className="card-title" style={{ marginBottom:0 }}>입퇴사자 현황</div>
         <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-          {monthLabel} 기준 · {isAllMonths ? '전체 재직' : '입사'} {gTotal.active}명 · {isAllMonths ? '전체 퇴직' : '퇴직'} {gTotal.left}명
+          {monthLabel} · {isAllMonths ? '재직' : '입사'} {gTotal.active} · {isAllMonths ? '퇴직' : '퇴사'} {gTotal.left}
         </span>
       </div>
 
-      {/* 그룹 탭 */}
-      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-        {COMPANY_GROUPS.map(g => (
-          <button key={g.key}
-            onClick={() => setSelGroup(g.key)}
-            style={{ padding:'4px 12px', borderRadius:'var(--radius-full)', fontSize:'var(--text-xs)', fontWeight:600, cursor:'pointer', border:'none',
-              background: selGroup===g.key ? g.color : 'var(--color-surface-offset)',
-              color: selGroup===g.key ? '#fff' : 'var(--color-text-muted)',
-            }}>
-            {g.label}
-          </button>
-        ))}
-      </div>
+      {/* 전월 대비 */}
+      {prevDelta && (
+        <div style={{ display:'flex', gap:12, marginBottom:10, padding:'6px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ color:'var(--color-text-muted)', fontWeight:600 }}>전월 대비</span>
+          <span>입사 {prevDelta.dActive >= 0 ? `+${prevDelta.dActive}` : prevDelta.dActive}명
+            <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>(전월 {prevDelta.prevActive}→당월 {gTotal.active})</span>
+          </span>
+          <span>퇴사 {prevDelta.dLeft >= 0 ? `+${prevDelta.dLeft}` : prevDelta.dLeft}명
+            <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>(전월 {prevDelta.prevLeft}→당월 {gTotal.left})</span>
+          </span>
+        </div>
+      )}
 
-      {/* 회사 카드 */}
-      <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-        {visibleCompanies.map(co => {
-          const { active, left } = getCompanyCounts(co);
-          const total = active + left;
-          const pct   = total > 0 ? Math.round((active/total)*100) : 0;
-          return (
-            <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
-              <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
-              <div style={{ display:'flex', gap:4, marginBottom:6 }}>
-                <span className="badge badge-success">{isAllMonths?'재직':'입사'} {active}</span>
-                <span className="badge badge-gray">{isAllMonths?'퇴직':'퇴사'} {left}</span>
-              </div>
-              {total > 0 && (
-                <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
-                  <div style={{ width:`${pct}%`, height:'100%', background:curGroup.color, borderRadius:3 }}/>
-                </div>
-              )}
+      {/* 그룹별 회사 카드 */}
+      {visibleGroups.map(group => (
+        <div key={group.key} style={{ marginBottom: visibleGroups.length > 1 ? 10 : 0 }}>
+          {visibleGroups.length > 1 && (
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+              <div style={{ width:3, height:14, background:group.color, borderRadius:2 }}/>
+              <span style={{ fontWeight:700, fontSize:'var(--text-xs)', color:group.color }}>{group.label}</span>
             </div>
-          );
-        })}
-      </div>
+          )}
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {group.companies.map(co => {
+              const { active, left } = getCompanyCounts(co);
+              const total = active + left;
+              const pct   = total > 0 ? Math.round((active/total)*100) : 0;
+              return (
+                <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
+                  <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
+                  <div style={{ display:'flex', gap:4, marginBottom:6 }}>
+                    <span className="badge badge-success">{isAllMonths?'재직':'입사'} {active}</span>
+                    <span className="badge badge-gray">{isAllMonths?'퇴직':'퇴사'} {left}</span>
+                  </div>
+                  {total > 0 && (
+                    <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:group.color, borderRadius:3 }}/>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
