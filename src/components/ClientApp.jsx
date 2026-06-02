@@ -2288,26 +2288,40 @@ function WorkerPage() {
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
 function BonsaDemographicsChart() {
-  const ageRef  = useRef(null);
-  const gndRef  = useRef(null);
-  const ageChart = useRef(null);
-  const gndChart = useRef(null);
+  const ageRef    = useRef(null);
+  const gndRef    = useRef(null);
+  const tenureRef = useRef(null);
+  const ageChart    = useRef(null);
+  const gndChart    = useRef(null);
+  const tenureChart = useRef(null);
 
   const d = _workerCache['PPPP_재직'];
   const gIdx = d?.headers?.indexOf('성별') ?? -1;
   const aIdx = d?.headers?.indexOf('나이') ?? -1;
+  const jIdx = d?.headers?.findIndex(h => h.includes('입사')) ?? -1;
   if (!d || (gIdx < 0 && aIdx < 0)) return null;
 
   const total = d.rows.length;
   let male=0, female=0, a20=0, a30=0, a40=0, a50=0;
+  let t0=0, t3=0, t6=0, t12=0, t24=0, t36=0;
+
+  const today = new Date();
   d.rows.forEach(r => {
-    const g = String(r[gIdx]||'');
-    if (g==='남') male++; else if (g==='여') female++;
-    const age = parseInt(r[aIdx]||'0');
-    if (age>=50) a50++;
-    else if (age>=40) a40++;
-    else if (age>=30) a30++;
-    else if (age>=20) a20++;
+    if (gIdx>=0) { const g=String(r[gIdx]||''); if(g==='남')male++; else if(g==='여')female++; }
+    if (aIdx>=0) { const age=parseInt(r[aIdx]||'0'); if(age>=50)a50++; else if(age>=40)a40++; else if(age>=30)a30++; else if(age>=20)a20++; }
+    if (jIdx>=0) {
+      const raw = String(r[jIdx]||'').trim().replace(/\./g,'-');
+      const joinDate = new Date(raw);
+      if (!isNaN(joinDate.getTime())) {
+        const months = (today.getFullYear()-joinDate.getFullYear())*12 + (today.getMonth()-joinDate.getMonth());
+        if (months < 3)       t0++;
+        else if (months < 6)  t3++;
+        else if (months < 12) t6++;
+        else if (months < 24) t12++;
+        else if (months < 36) t24++;
+        else                  t36++;
+      }
+    }
   });
 
   useEffect(() => {
@@ -2315,61 +2329,39 @@ function BonsaDemographicsChart() {
     const textColor = isDark ? '#888785' : '#6b6b6b';
     const bg = isDark ? '#1c1b19' : '#ffffff';
 
-    const makeLegend = (data, total) => ({
+    const makeLegend = (vals, tot) => ({
       position: 'right',
       labels: {
-        font: { size: 11 },
-        color: textColor,
-        boxWidth: 12,
-        padding: 8,
+        font:{ size:11 }, color:textColor, boxWidth:12, padding:8,
         generateLabels: (chart) =>
           chart.data.labels.map((label, i) => {
             const val = chart.data.datasets[0].data[i];
-            const p = total > 0 ? Math.round(val / total * 100) : 0;
-            return {
-              text: `${label}  ${val} (${p}%)`,
-              fillStyle: chart.data.datasets[0].backgroundColor[i],
-              strokeStyle: chart.data.datasets[0].backgroundColor[i],
-              hidden: false,
-              index: i,
-            };
+            const p = tot > 0 ? Math.round(val/tot*100) : 0;
+            return { text:`${label}  ${val} (${p}%)`, fillStyle:chart.data.datasets[0].backgroundColor[i], strokeStyle:chart.data.datasets[0].backgroundColor[i], hidden:false, index:i };
           }),
       },
     });
 
-    if (ageRef.current) {
-      if (ageChart.current) ageChart.current.destroy();
-      ageChart.current = new Chart(ageRef.current, {
-        type: 'doughnut',
-        data: {
-          labels: ['20대','30대','40대','50대↑'],
-          datasets: [{ data:[a20,a30,a40,a50], backgroundColor: CHART_COLORS, borderWidth:2, borderColor:bg }]
-        },
-        options: { responsive:true, maintainAspectRatio:false,
-          plugins: { legend: makeLegend([a20,a30,a40,a50], total) }
-        }
+    const makeChart = (ref, chartRef, labels, data, colors, tot) => {
+      if (!ref.current) return;
+      if (chartRef.current) chartRef.current.destroy();
+      chartRef.current = new Chart(ref.current, {
+        type:'doughnut',
+        data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:bg }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:makeLegend(data, tot) } }
       });
-    }
-    if (gndRef.current) {
-      if (gndChart.current) gndChart.current.destroy();
-      gndChart.current = new Chart(gndRef.current, {
-        type: 'doughnut',
-        data: {
-          labels: ['남','여'],
-          datasets: [{ data:[male,female], backgroundColor:['#006494','#a12c7b'], borderWidth:2, borderColor:bg }]
-        },
-        options: { responsive:true, maintainAspectRatio:false,
-          plugins: { legend: makeLegend([male,female], total) }
-        }
-      });
-    }
-    return () => {
-      if (ageChart.current) ageChart.current.destroy();
-      if (gndChart.current) gndChart.current.destroy();
     };
-  }, [a20,a30,a40,a50,male,female]);
 
-  const pct = n => total>0 ? Math.round(n/total*100) : 0;
+    makeChart(gndRef, gndChart, ['남','여'], [male,female], ['#006494','#a12c7b'], total);
+    makeChart(ageRef, ageChart, ['20대','30대','40대','50대↑'], [a20,a30,a40,a50], CHART_COLORS, total);
+    makeChart(tenureRef, tenureChart,
+      ['3개월 미만','3~6개월','6~12개월','12~24개월','24~36개월','36개월↑'],
+      [t0,t3,t6,t12,t24,t36], CHART_COLORS, total);
+
+    return () => {
+      [gndChart, ageChart, tenureChart].forEach(c => { if (c.current) c.current.destroy(); });
+    };
+  }, [a20,a30,a40,a50,male,female,t0,t3,t6,t12,t24,t36]);
 
   return (
     <div style={{ marginTop:12, padding:'12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', borderTop:'1px solid var(--color-divider)' }}>
@@ -2381,9 +2373,13 @@ function BonsaDemographicsChart() {
           <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>성별</div>
           <div style={{ position:'relative', height:130 }}><canvas ref={gndRef}/></div>
         </div>
-        <div style={{ flex:'2 1 280px' }}>
+        <div style={{ flex:'2 1 260px' }}>
           <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>연령대</div>
           <div style={{ position:'relative', height:130 }}><canvas ref={ageRef}/></div>
+        </div>
+        <div style={{ flex:'2 1 280px' }}>
+          <div style={{ fontSize:10, color:'var(--color-text-faint)', marginBottom:4 }}>근속기간</div>
+          <div style={{ position:'relative', height:130 }}><canvas ref={tenureRef}/></div>
         </div>
       </div>
     </div>
