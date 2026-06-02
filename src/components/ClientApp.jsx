@@ -1939,17 +1939,49 @@ const WARN_TEMPLATE = (name, ym, dates, count) => {
 ═══════════════════════════════════════════ */
 function AttendanceMissPage() {
   const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('attendMiss') || '[]'));
+  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { name:100, dates:350 }; } catch { return { name:100, dates:350 }; } });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [warnModal, setWarnModal] = useState(null);
   const [warnText, setWarnText] = useState('');
+  const [ctxMenu, setCtxMenu] = useState(null);
   const idRef = useRef(1);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = () => setCtxMenu(null);
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [ctxMenu]);
 
   const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); };
+
+  const startColResize = (e, col) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = colW[col];
+    const onMove = (ev) => setColW(prev => ({ ...prev, [col]: Math.max(60, startW + ev.clientX - startX) }));
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setColW(prev => { localStorage.setItem('attendMissColW', JSON.stringify(prev)); return prev; });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   const addRow = () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     save([...records, { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false }]);
+  };
+  const insertRow = (refId, position) => {
+    const ref = records.find(r => r.id === refId);
+    const ym = ref?.yearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const newRow = { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false };
+    const idx = records.findIndex(r => r.id === refId);
+    const next = [...records];
+    next.splice(position === 'above' ? idx : idx + 1, 0, newRow);
+    save(next);
+    setCtxMenu(null);
   };
   const update = (id, field, value) => save(records.map(r => {
     if (r.id !== id) return r;
@@ -1957,8 +1989,8 @@ function AttendanceMissPage() {
     if (field === 'dates') u.count = countDates(value);
     return u;
   }));
-  const del = (id) => { if (confirm('삭제하시겠습니까?')) save(records.filter(r => r.id !== id)); };
-  const markChecked = (id) => save(records.map(r => r.id === id ? { ...r, checked: true } : r));
+  const del = (id) => { if (confirm('삭제하시겠습니까?')) { save(records.filter(r => r.id !== id)); setCtxMenu(null); } };
+  const toggleChecked = (id) => save(records.map(r => r.id === id ? { ...r, checked: !r.checked } : r));
   const openWarn = (r) => { setWarnText(WARN_TEMPLATE(r.name, r.yearMonth, r.dates, r.count)); setWarnModal(r); };
   const confirmWarn = () => {
     const existing = JSON.parse(localStorage.getItem('attendWarn') || '[]');
@@ -1996,48 +2028,79 @@ function AttendanceMissPage() {
         </div>
       </div>
       <div className="table-wrap" style={{ marginBottom:24 }}>
-        <table className="data-table">
+        <table className="data-table" style={{ tableLayout:'fixed', width:'100%' }}>
+          <colgroup>
+            <col style={{ width:22 }}/>
+            <col style={{ width:95 }}/>
+            <col style={{ width:colW.name }}/>
+            <col style={{ width:colW.dates }}/>
+            <col style={{ width:55 }}/>
+            <col style={{ width:90 }}/>
+            <col style={{ width:90 }}/>
+            <col style={{ width:55 }}/>
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ width:95 }}>연/월</th><th>이름</th><th>누락 일자 (공백 구분)</th>
-              <th style={{ width:55, textAlign:'center' }}>횟수</th>
-              <th style={{ width:85, textAlign:'center' }}>점검완료</th>
-              <th style={{ width:85, textAlign:'center' }}>경고안내</th>
-              <th style={{ width:50 }}></th>
+              <th style={{ padding:0 }}></th>
+              <th>연/월</th>
+              <th style={{ position:'relative' }}>
+                이름
+                <div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'name')}/>
+              </th>
+              <th style={{ position:'relative' }}>
+                누락 일자 (공백 구분)
+                <div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'dates')}/>
+              </th>
+              <th style={{ textAlign:'center' }}>횟수</th>
+              <th style={{ textAlign:'center' }}>점검</th>
+              <th style={{ textAlign:'center' }}>경고안내</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {sortedMonths.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
+              <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
             )}
             {sortedMonths.map(ym =>
               groupMap[ym].map((r, idx) => (
                 <tr key={r.id}>
-                  <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0 ? 'var(--color-surface-offset)' : 'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
+                  <td className="row-handle-cell">
+                    <div className="row-handle-dot" onClick={e => { e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
+                  </td>
+                  <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0?'var(--color-surface-offset)':'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
                     {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
                   </td>
-                  <td><input className="inline-input" value={r.name} onChange={e => update(r.id,'name',e.target.value)} placeholder="이름"/></td>
-                  <td><input className="inline-input" value={r.dates} onChange={e => update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
+                  <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
+                  <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
                   <td style={{ textAlign:'center', fontWeight:700, color: r.count>=3?'var(--color-error)':r.count>=2?'var(--color-warning)':'var(--color-text)' }}>{r.count||'-'}</td>
                   <td style={{ textAlign:'center' }}>
                     {r.checked
-                      ? <span className="badge badge-success">완료</span>
-                      : <button className="btn btn-sm" style={{ background:'var(--color-primary-light)',color:'var(--color-primary)',padding:'3px 8px' }} onClick={() => markChecked(r.id)}>점검완료</button>
+                      ? <span className="badge badge-success" style={{ cursor:'pointer' }} onClick={()=>toggleChecked(r.id)} title="클릭하여 해제">완료</span>
+                      : <button className="btn btn-sm" style={{ background:'var(--color-warning-light)',color:'var(--color-warning)',padding:'3px 8px' }} onClick={()=>toggleChecked(r.id)}>점검중</button>
                     }
                   </td>
                   <td style={{ textAlign:'center' }}>
                     {r.checked && (r.warned
                       ? <span className="badge badge-gray">발송됨</span>
-                      : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={() => openWarn(r)}>경고 안내</button>
+                      : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={()=>openWarn(r)}>경고 안내</button>
                     )}
                   </td>
-                  <td><button className="btn btn-sm" style={{ color:'var(--color-error)',opacity:0.6 }} onClick={() => del(r.id)}>삭제</button></td>
+                  <td><button className="btn btn-sm" style={{ color:'var(--color-error)',opacity:0.6 }} onClick={()=>del(r.id)}>삭제</button></td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {ctxMenu && (
+        <div className="row-context-menu" style={{ left:ctxMenu.x, top:ctxMenu.y }} onClick={e=>e.stopPropagation()}>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'above')}>↑ 위에 행 추가</button>
+          <button className="rcm-btn" onClick={()=>insertRow(ctxMenu.id,'below')}>↓ 아래에 행 추가</button>
+          <div className="rcm-divider"/>
+          <button className="rcm-btn danger" onClick={()=>del(ctxMenu.id)}>✕ 행 삭제</button>
+        </div>
+      )}
 
       {allNames.length > 0 && (
         <div className="card">
