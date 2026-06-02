@@ -1927,6 +1927,7 @@ function GuidePage() {
 const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
 const WORKER_SHEETS = [
   {sheetName:'퍼플_재직',    company:'PPPP',    status:'재직'},
+  {sheetName:'퍼플_퇴직',    company:'PPPP',    status:'퇴직'},
   {sheetName:'영업본부_명부', company:'영업본부', status:'재직'},
   {sheetName:'그랑디르_재직', company:'그랑디르', status:'재직'},
   {sheetName:'교도리_재직',  company:'교도리',  status:'재직'},
@@ -2231,11 +2232,23 @@ function WorkerPage() {
         })}
       </div>
 
-      {/* 재직 인원 수 표시 (탭 없음 - 재직만) */}
+      {/* PPPP만 재직/퇴직 탭 표시, 나머지는 재직만 */}
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
-        <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', padding:'4px 0' }}>
-          {statusLabel(selCompany, '재직')} {_workerCache[`${selCompany}_재직`]?.rows.length ?? 0}명
-        </span>
+        {selCompany === 'PPPP' ? (
+          ['재직','퇴직'].map(st => (
+            <button key={st} className="btn btn-sm"
+              style={{ background: selStatus===st?'var(--color-primary)':'var(--color-surface-offset)', color: selStatus===st?'#fff':'var(--color-text-muted)', padding:'4px 14px' }}
+              onClick={()=>setSelStatus(st)}>
+              {statusLabel(selCompany, st)}
+              {(_workerCache[`${selCompany}_${st}`]?.rows.length ?? 0) > 0 &&
+                <span style={{ marginLeft:4, fontSize:10 }}>({_workerCache[`${selCompany}_${st}`].rows.length})</span>}
+            </button>
+          ))
+        ) : (
+          <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', padding:'4px 0' }}>
+            {statusLabel(selCompany, '재직')} {_workerCache[`${selCompany}_재직`]?.rows.length ?? 0}명
+          </span>
+        )}
         <div className="search-wrap" style={{ marginLeft:'auto' }}>
           <Search size={14}/>
           <input className="search-input" placeholder="검색..." value={search} onChange={e=>setSearch(e.target.value)}/>
