@@ -2005,10 +2005,21 @@ function WorkerPage() {
           <div className="page-desc">사업자별 재직·퇴직 근로자 현황 — Apps Script 연동</div>
         </div>
         {gasUrl && (
-          <button className="btn btn-ghost btn-sm" onClick={()=>loadAll(gasUrl)} disabled={loading}
-            style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-            {loading ? '로딩 중...' : '새로고침'}
-          </button>
+          <div style={{ display:'flex', gap:6 }}>
+            <button className="btn btn-ghost btn-sm" onClick={()=>loadAll(gasUrl)} disabled={loading}
+              style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+              {loading ? '로딩 중...' : '새로고침'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={async()=>{
+              try {
+                const res = await fetch(gasUrl);
+                const text = await res.text();
+                alert(`HTTP ${res.status}\n\n응답 (앞 500자):\n${text.slice(0,500)}`);
+              } catch(e) { alert('오류: ' + e.message); }
+            }} style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+              진단
+            </button>
+          </div>
         )}
       </div>
 
