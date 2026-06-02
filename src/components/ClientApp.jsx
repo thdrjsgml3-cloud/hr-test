@@ -1958,10 +1958,9 @@ const SHEET_RULES = {
     addGenderAge: true,
     includeTerms: ['NO','본부','팀','직무','이름','입사일자'],
     excludeNames: ['김민지'],
-    statusLabel: '재직',
   },
   'PPPP_퇴직': {
-    addGenderAge: true,
+    addGenderAge: false,
     includeTerms: ['NO','부서','이름','입사일자','퇴사일자','퇴사사유'],
     addRetiredCol: true,
   },
@@ -1971,17 +1970,17 @@ const SHEET_RULES = {
     statusLabel: '위촉',
   },
   '영업본부_퇴직': {
-    addGenderAge: true,
-    skipRows: 10,
+    addGenderAge: false,
+    skipRows: 9,
     renameHeaders: {'*지인 제외':'본부','*26/01/26 이후 기준':'본부장','*투입 인원 대비':'이름','*투입 입원':'이름'},
-    includeTerms: ['NO','본부','본부장','이름','위촉일자','해촉일자','해촉사유','해촉 사유'],
+    includeTerms: ['본부','본부장','이름','위촉일자','해촉일자'],
   },
   '그랑디르_재직': {
     addGenderAge: true,
     includeTerms: ['NO','본부','직급','이름','입사일자'],
   },
   '그랑디르_퇴직': {
-    addGenderAge: true,
+    addGenderAge: false,
     includeTerms: ['NO','팀','직급','이름','입사일자','퇴사일자','퇴사사유'],
     addRetiredCol: true,
   },
@@ -1990,7 +1989,7 @@ const SHEET_RULES = {
     includeTerms: ['NO','본부','팀','직급','이름','입사일자'],
   },
   '교도리_퇴직': {
-    addGenderAge: true,
+    addGenderAge: false,
     includeTerms: ['NO','부서','팀','직책','이름','입사일자','퇴사일자','퇴사사유'],
     addRetiredCol: true,
   },
@@ -1999,7 +1998,7 @@ const SHEET_RULES = {
     includeTerms: ['NO','부서','팀','직책','이름','입사일자'],
   },
   'PZPZ_퇴직': {
-    addGenderAge: true,
+    addGenderAge: false,
     includeTerms: ['NO','부서','팀','직책','이름','입사일자','퇴사일자','퇴사사유'],
     addRetiredCol: true,
   },
@@ -2041,11 +2040,13 @@ function applySheetRules(key, rawHeaders, rawRows) {
   }
 
   // 주민번호 열 자동 탐지
-  let residentIdx = headers.findIndex(h => h.includes('주민'));
+  let residentIdx = headers.findIndex(h => h.includes('주민') || h.includes('등록번호'));
   if (residentIdx < 0) {
     for (let ci = 0; ci < headers.length; ci++) {
-      const samples = rows.slice(0,5).map(r => String(r[ci]||''));
-      if (samples.some(v => /^\d{6}-?\d{7}$/.test(v.trim()))) { residentIdx = ci; break; }
+      const samples = rows.slice(0,10).map(r => String(r[ci]||'').trim()).filter(Boolean);
+      if (samples.length > 0 && samples.some(v =>
+        /^\d{6}[-]?\d{7}$/.test(v) || /^\d{13}$/.test(v)
+      )) { residentIdx = ci; break; }
     }
   }
 
@@ -2286,141 +2287,129 @@ function WorkerPage() {
 }
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
+const COMPANY_GROUPS = [
+  { label:'본사', key:'bonsa',  color:'var(--color-primary)', companies:['PPPP'] },
+  { label:'영업', key:'sales',  color:'var(--color-blue)',    companies:['영업본부'] },
+  { label:'F&B', key:'fnb',    color:'var(--color-warning)',  companies:['그랑디르','교도리','PZPZ'] },
+];
+
 function WorkerSummaryCard({ selMonths }) {
-  const [counts, setCounts] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(_workerCache.__loaded);
+  const [loading, setLoading] = useState(!_workerCache.__loaded);
+  const [selGroup, setSelGroup] = useState('bonsa'); // 기본: 본사
 
   useEffect(() => {
-    if (_workerCache.__loaded) {
-      buildCounts();
-    } else {
-      setLoading(true);
-      Promise.all(WORKER_SHEETS.map(async s => {
-        const key = `${s.company}_${s.status}`;
-        if (_workerCache[key]) return;
-        try {
-          const table = await fetchWorkerSheetTable(s.sheetName);
-          const rawCols = table.cols.slice(2);
-          const rawHeaders = rawCols.map(c => (c.label || '').trim());
-          const rawRows = table.rows
-            .map(r => r.c.slice(2, 2 + rawCols.length).map(cell => String(extractCellValue(cell) ?? '')))
-            .filter(row => row.some(v => v.trim() !== ''));
-          _workerCache[key] = applySheetRules(key, rawHeaders, rawRows);
-        } catch { _workerCache[key] = { headers:[], rows:[] }; }
-      })).then(() => {
-        _workerCache.__loaded = true;
-        buildCounts();
-        setLoading(false);
-      });
-    }
+    if (_workerCache.__loaded) { setLoaded(true); setLoading(false); return; }
+    setLoading(true);
+    Promise.all(WORKER_SHEETS.map(async s => {
+      const key = `${s.company}_${s.status}`;
+      if (_workerCache[key]) return;
+      try {
+        const table = await fetchWorkerSheetTable(s.sheetName);
+        const rawCols = table.cols.slice(2);
+        const rawHeaders = rawCols.map(c => (c.label || '').trim());
+        const rawRows = table.rows
+          .map(r => r.c.slice(2, 2 + rawCols.length).map(cell => String(extractCellValue(cell) ?? '')))
+          .filter(row => row.some(v => v.trim() !== ''));
+        _workerCache[key] = applySheetRules(key, rawHeaders, rawRows);
+      } catch { _workerCache[key] = { headers:[], rows:[] }; }
+    })).then(() => {
+      _workerCache.__loaded = true;
+      setLoaded(true);
+      setLoading(false);
+    });
   }, []);
 
-  const buildCounts = () => {
-    const c = {};
-    WORKER_COMPANIES.forEach(co => {
-      c[co] = { 재직: (_workerCache[`${co}_재직`]?.rows.length ?? 0), 퇴직: (_workerCache[`${co}_퇴직`]?.rows.length ?? 0) };
-    });
-    setCounts(c);
+  // 월 필터 적용 카운트
+  const selArr = selMonths ? [...selMonths].sort() : [];
+  const isAllMonths = selArr.length === 0 || selArr.length >= ALL_MONTHS.length;
+
+  const getCompanyCounts = (co) => {
+    const activeData = _workerCache[`${co}_재직`];
+    const leftData   = _workerCache[`${co}_퇴직`];
+    if (isAllMonths) {
+      return { active: activeData?.rows.length||0, left: leftData?.rows.length||0 };
+    }
+    // 선택된 월에 입사한 사람
+    const joinCol = activeData?.headers?.findIndex(h => h.includes('입사')||h.includes('위촉')) ?? -1;
+    const active  = joinCol>=0
+      ? (activeData?.rows||[]).filter(r => selArr.some(m => String(r[joinCol]||'').startsWith(m))).length
+      : 0;
+    // 선택된 월에 퇴사/해촉한 사람
+    const leftCol = leftData?.headers?.findIndex(h => h.includes('퇴사')||h.includes('해촉일')) ?? -1;
+    const left    = leftCol>=0
+      ? (leftData?.rows||[]).filter(r => selArr.some(m => String(r[leftCol]||'').startsWith(m))).length
+      : 0;
+    return { active, left };
   };
+
+  const curGroup = COMPANY_GROUPS.find(g => g.key === selGroup) || COMPANY_GROUPS[0];
+  const visibleCompanies = curGroup.companies;
+
+  const gTotal = visibleCompanies.reduce((acc, co) => {
+    const c = getCompanyCounts(co);
+    return { active: acc.active+c.active, left: acc.left+c.left };
+  }, { active:0, left:0 });
+
+  const monthLabel = !isAllMonths
+    ? selArr.length === 1
+      ? selArr[0].replace('-','년 ')+'월'
+      : `${selArr.length}개월`
+    : '전체';
 
   if (loading) return (
     <div className="card" style={{ marginBottom:20 }}>
       <div className="card-title">입퇴사자 현황</div>
-      <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', padding:'16px 0' }}>구글 시트에서 데이터를 불러오는 중...</div>
+      <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', padding:'8px 0' }}>데이터 로딩 중...</div>
     </div>
   );
 
-  if (!counts) return null;
-
-  const totalActive = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.재직||0)),0);
-  const totalLeft   = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.퇴직||0)),0);
-
-  // 전월 대비 (selMonths가 정확히 1개월일 때)
-  const selArr = selMonths ? [...selMonths].sort() : [];
-  let prevMonthLabel = null, prevCounts = null;
-  if (selArr.length === 1 && _workerCache.__loaded) {
-    const [y, m] = selArr[0].split('-').map(Number);
-    const prevY = m === 1 ? y - 1 : y;
-    const prevM = m === 1 ? 12 : m - 1;
-    prevMonthLabel = `${prevY}년 ${prevM}월`;
-    // 전월 재직자 = 해당 월에 입사일 ≤ 전월말, 퇴사일 > 전월말인 인원
-    // 간단 근사: 당월 재직수 vs 전체 재직수 비교 불가 → 캐시에 날짜 데이터가 있으면 계산
-    // 현재 구현에서는 입사일자를 기준으로 당월 입사자, 퇴직에서 당월 퇴사자를 카운트
-    const selYM = selArr[0]; // YYYY-MM
-    const newJoin = {}, newLeft = {};
-    WORKER_COMPANIES.forEach(co => {
-      const activeData = _workerCache[`${co}_재직`];
-      const leftData = _workerCache[`${co}_퇴직`];
-      const joinCol = activeData?.headers?.findIndex(h => h.includes('입사')) ?? -1;
-      const leftCol = leftData?.headers?.findIndex(h => h.includes('퇴사') || h.includes('해촉일')) ?? -1;
-      newJoin[co] = joinCol >= 0 ? (activeData?.rows||[]).filter(r => String(r[joinCol]||'').startsWith(selYM)).length : 0;
-      newLeft[co] = leftCol >= 0 ? (leftData?.rows||[]).filter(r => String(r[leftCol]||'').startsWith(selYM)).length : 0;
-    });
-    const totalJoin = WORKER_COMPANIES.reduce((s,c)=>s+(newJoin[c]||0),0);
-    const totalLeft2 = WORKER_COMPANIES.reduce((s,c)=>s+(newLeft[c]||0),0);
-    prevCounts = { newJoin, newLeft, totalJoin, totalLeft: totalLeft2 };
-  }
-
   return (
     <div className="card" style={{ marginBottom:20 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+      {/* 헤더 */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
         <div className="card-title" style={{ marginBottom:0 }}>입퇴사자 현황</div>
-        <div style={{ display:'flex', gap:8, fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-          <span>전체 재직 <strong style={{ color:'var(--color-success)' }}>{totalActive}명</strong></span>
-          <span>전체 퇴직 <strong style={{ color:'var(--color-text-muted)' }}>{totalLeft}명</strong></span>
-        </div>
+        <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+          {monthLabel} 기준 · {isAllMonths ? '전체 재직' : '입사'} {gTotal.active}명 · {isAllMonths ? '전체 퇴직' : '퇴직'} {gTotal.left}명
+        </span>
       </div>
-      {prevCounts && (
-        <div style={{ display:'flex', gap:16, marginBottom:14, padding:'8px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap' }}>
-          <span style={{ fontWeight:600, color:'var(--color-text-muted)' }}>{selArr[0].replace('-','년 ')}월 기준</span>
-          <span>당월 입사 <strong style={{ color:'var(--color-success)' }}>+{prevCounts.totalJoin}명</strong></span>
-          <span>당월 퇴사 <strong style={{ color:'var(--color-error)' }}>-{prevCounts.totalLeft}명</strong></span>
-          <span style={{ color:'var(--color-text-faint)' }}>
-            {WORKER_COMPANIES.filter(co => prevCounts.newJoin[co] > 0 || prevCounts.newLeft[co] > 0).map(co =>
-              `${co} 입사${prevCounts.newJoin[co]} 퇴사${prevCounts.newLeft[co]}`
-            ).join(' | ')}
-          </span>
-        </div>
-      )}
-      {[
-        { label:'본사', color:'var(--color-primary)', companies:['PPPP'] },
-        { label:'영업', color:'var(--color-blue)', companies:['영업본부'] },
-        { label:'F&B', color:'var(--color-warning)', companies:['그랑디르','교도리','PZPZ'] },
-      ].map(group => {
-        const gActive = group.companies.reduce((s,c) => s+(counts[c]?.재직||0), 0);
-        const gLeft   = group.companies.reduce((s,c) => s+(counts[c]?.퇴직||0), 0);
-        return (
-          <div key={group.label} style={{ marginBottom:12 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-              <div style={{ width:3, height:16, background:group.color, borderRadius:2 }}/>
-              <span style={{ fontWeight:700, fontSize:'var(--text-sm)', color:group.color }}>{group.label}</span>
-              <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>재직 {gActive} · 퇴직 {gLeft}</span>
+
+      {/* 그룹 탭 */}
+      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+        {COMPANY_GROUPS.map(g => (
+          <button key={g.key}
+            onClick={() => setSelGroup(g.key)}
+            style={{ padding:'4px 12px', borderRadius:'var(--radius-full)', fontSize:'var(--text-xs)', fontWeight:600, cursor:'pointer', border:'none',
+              background: selGroup===g.key ? g.color : 'var(--color-surface-offset)',
+              color: selGroup===g.key ? '#fff' : 'var(--color-text-muted)',
+            }}>
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 회사 카드 */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+        {visibleCompanies.map(co => {
+          const { active, left } = getCompanyCounts(co);
+          const total = active + left;
+          const pct   = total > 0 ? Math.round((active/total)*100) : 0;
+          return (
+            <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
+              <div style={{ display:'flex', gap:4, marginBottom:6 }}>
+                <span className="badge badge-success">{isAllMonths?'재직':'입사'} {active}</span>
+                <span className="badge badge-gray">{isAllMonths?'퇴직':'퇴사'} {left}</span>
+              </div>
+              {total > 0 && (
+                <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
+                  <div style={{ width:`${pct}%`, height:'100%', background:curGroup.color, borderRadius:3 }}/>
+                </div>
+              )}
             </div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:8, paddingLeft:12 }}>
-              {group.companies.map(co => {
-                const active = counts[co]?.재직 || 0;
-                const left   = counts[co]?.퇴직 || 0;
-                const total  = active + left;
-                const pct    = total > 0 ? Math.round((active/total)*100) : 0;
-                return (
-                  <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'8px 12px' }}>
-                    <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:4 }}>{co}</div>
-                    <div style={{ display:'flex', gap:4, marginBottom:4 }}>
-                      <span className="badge badge-success">재직 {active}</span>
-                      <span className="badge badge-gray">퇴직 {left}</span>
-                    </div>
-                    {total > 0 && (
-                      <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
-                        <div style={{ width:`${pct}%`, height:'100%', background:group.color, borderRadius:3 }}/>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
