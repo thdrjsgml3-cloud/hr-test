@@ -2021,7 +2021,7 @@ function AttendanceMissPage() {
     const data = (s && s !== '[]') ? JSON.parse(s) : INITIAL_ATTEND_MISS;
     return data.map(r => ({ ...r, count: countDates(r.dates) }));
   });
-  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { name:100, dates:350 }; } catch { return { name:100, dates:350 }; } });
+  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { dept:90, name:100, dates:350 }; } catch { return { dept:90, name:100, dates:350 }; } });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [warnModal, setWarnModal] = useState(null);
   const [warnText, setWarnText] = useState('');
@@ -2055,12 +2055,12 @@ function AttendanceMissPage() {
   const addRow = () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    save([...records, { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false, memo: '' }]);
+    save([...records, { id: idRef.current++, yearMonth: ym, dept: '', name: '', dates: '', count: 0, checked: false, warned: false, memo: '' }]);
   };
   const insertRow = (refId, position) => {
     const ref = records.find(r => r.id === refId);
     const ym = ref?.yearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-    const newRow = { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false, memo: '' };
+    const newRow = { id: idRef.current++, yearMonth: ym, dept: '', name: '', dates: '', count: 0, checked: false, warned: false, memo: '' };
     const idx = records.findIndex(r => r.id === refId);
     const next = [...records];
     next.splice(position === 'above' ? idx : idx + 1, 0, newRow);
@@ -2131,6 +2131,7 @@ function AttendanceMissPage() {
           <colgroup>
             <col style={{ width:22 }}/>
             <col style={{ width:95 }}/>
+            <col style={{ width:colW.dept }}/>
             <col style={{ width:colW.name }}/>
             <col style={{ width:colW.dates }}/>
             <col style={{ width:70 }}/>
@@ -2143,6 +2144,10 @@ function AttendanceMissPage() {
             <tr>
               <th style={{ padding:0 }}></th>
               <th>연/월</th>
+              <th style={{ position:'relative' }}>
+                소속
+                <div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'dept')}/>
+              </th>
               <th style={{ position:'relative' }}>
                 이름
                 <div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'name')}/>
@@ -2160,7 +2165,7 @@ function AttendanceMissPage() {
           </thead>
           <tbody>
             {sortedMonths.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
+              <tr><td colSpan={10} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
             )}
             {sortedMonths.map(ym =>
               groupMap[ym].map((r, idx) => {
@@ -2173,6 +2178,7 @@ function AttendanceMissPage() {
                     <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0?'var(--color-surface-offset)':'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
                       {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
                     </td>
+                    <td><input className="inline-input" value={r.dept||''} onChange={e=>update(r.id,'dept',e.target.value)} placeholder="소속"/></td>
                     <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
                     <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
                     <td style={{ textAlign:'center', background: over?'var(--color-error-light)':undefined, borderRadius: over?3:0 }}>
@@ -2367,7 +2373,7 @@ function AttendanceWarningPage() {
 ═══════════════════════════════════════════ */
 function OtherWarningPage() {
   const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('otherWarn') || '[]'));
-  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('otherWarnColW')) || { ym:95, name:110, content:260, warningBy:100 }; } catch { return { ym:95, name:110, content:260, warningBy:100 }; } });
+  const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('otherWarnColW')) || { ym:95, dept:90, name:110, content:260, warningBy:100 }; } catch { return { ym:95, dept:90, name:110, content:260, warningBy:100 }; } });
   const [msgPopup, setMsgPopup] = useState(null); // { x, y, id }
   const [ctxMenu, setCtxMenu] = useState(null);
   const idRef = useRef(1);
@@ -2397,12 +2403,12 @@ function OtherWarningPage() {
   const addRow = () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    save([...records, { id:idRef.current++, yearMonth:ym, name:'', content:'', message:'', warningBy:'' }]);
+    save([...records, { id:idRef.current++, yearMonth:ym, dept:'', name:'', content:'', message:'', warningBy:'' }]);
   };
   const insertRow = (refId, pos) => {
     const ref = records.find(r=>r.id===refId);
     const ym = ref?.yearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-    const newRow = { id:idRef.current++, yearMonth:ym, name:'', content:'', message:'', warningBy:'' };
+    const newRow = { id:idRef.current++, yearMonth:ym, dept:'', name:'', content:'', message:'', warningBy:'' };
     const idx = records.findIndex(r=>r.id===refId);
     const next = [...records];
     next.splice(pos==='above'?idx:idx+1, 0, newRow);
@@ -2430,6 +2436,7 @@ function OtherWarningPage() {
           <colgroup>
             <col style={{ width:22 }}/>
             <col style={{ width:colW.ym }}/>
+            <col style={{ width:colW.dept }}/>
             <col style={{ width:colW.name }}/>
             <col style={{ width:colW.content }}/>
             <col style={{ width:130 }}/>
@@ -2440,6 +2447,7 @@ function OtherWarningPage() {
             <tr>
               <th style={{ padding:0 }}></th>
               <th style={{ position:'relative' }}>연/월<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'ym')}/></th>
+              <th style={{ position:'relative' }}>소속<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'dept')}/></th>
               <th style={{ position:'relative' }}>이름<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'name')}/></th>
               <th style={{ position:'relative' }}>내용<div style={{ position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none' }} onMouseDown={e=>startColResize(e,'content')}/></th>
               <th style={{ textAlign:'center' }}>전달된 메시지</th>
@@ -2448,13 +2456,14 @@ function OtherWarningPage() {
             </tr>
           </thead>
           <tbody>
-            {records.length===0 && <tr><td colSpan={7} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>기타 경고 기록이 없습니다.</td></tr>}
+            {records.length===0 && <tr><td colSpan={8} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0'}}>기타 경고 기록이 없습니다.</td></tr>}
             {records.map(r => (
               <tr key={r.id}>
                 <td className="row-handle-cell">
                   <div className="row-handle-dot" onClick={e=>{ e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
                 </td>
                 <td><input className="inline-input" value={r.yearMonth} onChange={e=>update(r.id,'yearMonth',e.target.value)} style={{width:'100%'}}/></td>
+                <td><input className="inline-input" value={r.dept||''} onChange={e=>update(r.id,'dept',e.target.value)} placeholder="소속"/></td>
                 <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
                 <td><input className="inline-input" value={r.content} onChange={e=>update(r.id,'content',e.target.value)} placeholder="경고 내용"/></td>
                 <td style={{ textAlign:'center' }}>
