@@ -2298,7 +2298,7 @@ function ChartWithLegend({ title, canvasRef, items, total, height=120 }) {
           {items.map(({label,value,color}) => (
             <div key={label} style={{ display:'flex', alignItems:'center', gap:5 }}>
               <div style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }}/>
-              <span style={{ fontSize:11, color:'var(--color-text-muted)', flex:1, whiteSpace:'nowrap' }}>{label}</span>
+              <span style={{ fontSize:11, color:'var(--color-text-muted)', whiteSpace:'nowrap', marginRight:4 }}>{label}</span>
               <span style={{ fontSize:14, fontWeight:700, color }}>{value}</span>
               <span style={{ fontSize:10, color:'var(--color-text-faint)', marginLeft:2 }}>({pct(value)}%)</span>
             </div>
