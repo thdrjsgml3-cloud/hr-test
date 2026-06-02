@@ -2157,16 +2157,16 @@ function AttendanceMissPage() {
               groupMap[ym].map((r, idx) => {
                 const over = r.count >= 3;
                 return (
-                  <tr key={r.id} style={over ? { background:'var(--color-error-light)', fontWeight:700 } : {}}>
+                  <tr key={r.id}>
                     <td className="row-handle-cell">
                       <div className="row-handle-dot" onClick={e => { e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
                     </td>
                     <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0?'var(--color-surface-offset)':'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
                       {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
                     </td>
-                    <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름" style={over?{fontWeight:700}:{}}/></td>
+                    <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
                     <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
-                    <td style={{ textAlign:'center' }}>
+                    <td style={{ textAlign:'center', background: over?'var(--color-error-light)':undefined, borderRadius: over?3:0 }}>
                       <div style={{ fontWeight:700, color: over?'var(--color-error)':r.count>=2?'var(--color-warning)':'var(--color-text)' }}>{r.count||'-'}</div>
                       {over && <div style={{ fontSize:9, color:'var(--color-error)', fontWeight:700, whiteSpace:'nowrap', lineHeight:1.4 }}>경위서 필요</div>}
                     </td>
