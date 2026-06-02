@@ -2041,8 +2041,12 @@ function AttendanceMissPage() {
 
   const startColResize = (e, col) => {
     e.preventDefault();
-    const startX = e.clientX, startW = colW[col];
-    const onMove = (ev) => setColW(prev => ({ ...prev, [col]: Math.max(60, startW + ev.clientX - startX) }));
+    let lastX = e.clientX;
+    const onMove = (ev) => {
+      const delta = ev.clientX - lastX;
+      lastX = ev.clientX;
+      setColW(prev => ({ ...prev, [col]: Math.max(60, (prev[col] ?? 60) + delta) }));
+    };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
@@ -2389,8 +2393,12 @@ function OtherWarningPage() {
 
   const startColResize = (e, col) => {
     e.preventDefault();
-    const startX = e.clientX, startW = colW[col];
-    const onMove = (ev) => setColW(prev => ({ ...prev, [col]: Math.max(60, startW + ev.clientX - startX) }));
+    let lastX = e.clientX;
+    const onMove = (ev) => {
+      const delta = ev.clientX - lastX;
+      lastX = ev.clientX;
+      setColW(prev => ({ ...prev, [col]: Math.max(60, (prev[col] ?? 60) + delta) }));
+    };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
