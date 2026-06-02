@@ -1940,19 +1940,69 @@ const WORKER_SHEETS = [
 const WORKER_COMPANIES = ['PPPP','영업본부','그랑디르','교도리','PZPZ'];
 
 // 시트별 처리 규칙
+// 헤더 매칭 (부분 일치 + NO/이름 동의어)
+function matchHeader(header, term) {
+  const h = (header||'').toLowerCase().trim();
+  const t = term.toLowerCase().trim();
+  if (h === t) return true;
+  if (h.includes(t)) return true;
+  // 동의어
+  if ((t==='no'||t==='no.') && (h==='번호'||h==='no.'||h==='no'||h==='#'||h==='순번'||h==='순서')) return true;
+  if (t==='이름' && (h==='성명'||h==='이 름'||h.includes('성명'))) return true;
+  if (t==='직책' && (h==='직급'||h==='직위'||h.includes('직'))) return true;
+  return false;
+}
+
 const SHEET_RULES = {
-  'PPPP_재직':     { addGenderAge:true },
-  'PPPP_퇴직':     { addGenderAge:true, excludeContains:['직무'], addRetiredCol:true },
-  '영업본부_재직':  { addGenderAge:true, excludeContains:['해촉'], statusLabel:'위촉' },
-  '영업본부_퇴직':  { addGenderAge:true, skipRows:10,
-    renameHeaders:{'*지인 제외':'본부','*26/01/26 이후 기준':'본부장','*투입 인원 대비':'이름'},
-    includeContains:['본부','본부장','이름','위촉일자','해촉일자','해촉 사유','해촉사유'] },
-  '그랑디르_재직':  { addGenderAge:true, excludeContains:['근속'] },
-  '그랑디르_퇴직':  { addGenderAge:true, excludeContains:['근속'], addRetiredCol:true },
-  '교도리_재직':   { addGenderAge:true, excludeContains:['근속'] },
-  '교도리_퇴직':   { addGenderAge:true, addRetiredCol:true },
-  'PZPZ_재직':    { addGenderAge:true, excludeContains:['근속'] },
-  'PZPZ_퇴직':    { addGenderAge:true, excludeContains:['근속'], addRetiredCol:true },
+  'PPPP_재직': {
+    addGenderAge: true,
+    includeTerms: ['NO','본부','팀','직무','이름','입사일자'],
+    excludeNames: ['김민지'],
+    statusLabel: '재직',
+  },
+  'PPPP_퇴직': {
+    addGenderAge: true,
+    includeTerms: ['NO','부서','이름','입사일자','퇴사일자','퇴사사유'],
+    addRetiredCol: true,
+  },
+  '영업본부_재직': {
+    addGenderAge: true,
+    includeTerms: ['NO','본부','본부장','이름','위촉일자'],
+    statusLabel: '위촉',
+  },
+  '영업본부_퇴직': {
+    addGenderAge: true,
+    skipRows: 10,
+    renameHeaders: {'*지인 제외':'본부','*26/01/26 이후 기준':'본부장','*투입 인원 대비':'이름','*투입 입원':'이름'},
+    includeTerms: ['NO','본부','본부장','이름','위촉일자','해촉일자','해촉사유','해촉 사유'],
+  },
+  '그랑디르_재직': {
+    addGenderAge: true,
+    includeTerms: ['NO','본부','직급','이름','입사일자'],
+  },
+  '그랑디르_퇴직': {
+    addGenderAge: true,
+    includeTerms: ['NO','팀','직급','이름','입사일자','퇴사일자','퇴사사유'],
+    addRetiredCol: true,
+  },
+  '교도리_재직': {
+    addGenderAge: true,
+    includeTerms: ['NO','본부','팀','직급','이름','입사일자'],
+  },
+  '교도리_퇴직': {
+    addGenderAge: true,
+    includeTerms: ['NO','부서','팀','직책','이름','입사일자','퇴사일자','퇴사사유'],
+    addRetiredCol: true,
+  },
+  'PZPZ_재직': {
+    addGenderAge: true,
+    includeTerms: ['NO','부서','팀','직책','이름','입사일자'],
+  },
+  'PZPZ_퇴직': {
+    addGenderAge: true,
+    includeTerms: ['NO','부서','팀','직책','이름','입사일자','퇴사일자','퇴사사유'],
+    addRetiredCol: true,
+  },
 };
 
 // 주민번호 → 성별/나이
@@ -1999,16 +2049,17 @@ function applySheetRules(key, rawHeaders, rawRows) {
     }
   }
 
-  // 포함할 열 인덱스 결정
+  // 포함할 열 인덱스 결정 (includeTerms 기반, 순서 유지)
   let idxs = headers.map((_,i) => i);
 
-  if (rules.includeContains?.length) {
-    idxs = rules.includeContains
-      .map(inc => headers.findIndex(h => h.includes(inc)))
-      .filter(i => i >= 0);
-  }
-
-  if (rules.excludeContains?.length) {
+  if (rules.includeTerms?.length) {
+    const mapped = rules.includeTerms.map(term => {
+      const idx = headers.findIndex(h => matchHeader(h, term));
+      return idx;
+    }).filter(i => i >= 0);
+    // 중복 제거, 순서 유지
+    idxs = [...new Set(mapped)];
+  } else if (rules.excludeContains?.length) {
     idxs = idxs.filter(i => !rules.excludeContains.some(ex => headers[i].includes(ex)));
   }
 
@@ -2028,12 +2079,19 @@ function applySheetRules(key, rawHeaders, rawRows) {
   }
 
   const finalHeaders = idxs.map(i => headers[i]);
-  const finalRows = rows.map(r => idxs.map(i => String(r[i]??'')));
+  // 특정 이름 제외
+  const nameColIdx = idxs.findIndex(i => matchHeader(headers[i], '이름'));
+  let filteredRows = rows;
+  if (rules.excludeNames?.length && nameColIdx >= 0) {
+    const nameRawIdx = idxs[nameColIdx];
+    filteredRows = rows.filter(r => !rules.excludeNames.includes(String(r[nameRawIdx]||'').trim()));
+  }
+  const finalRows = filteredRows.map(r => idxs.map(i => String(r[i]??'')));
 
   // 성별/나이 추가
   if (rules.addGenderAge && residentIdx >= 0) {
     finalHeaders.push('성별', '나이');
-    rows.forEach((r, ri) => {
+    filteredRows.forEach((r, ri) => {
       const ga = calcGenderAge(r[residentIdx]);
       finalRows[ri].push(ga?.gender||'-', ga?.age||'-');
     });
@@ -2324,28 +2382,45 @@ function WorkerSummaryCard({ selMonths }) {
           </span>
         </div>
       )}
-      <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
-        {WORKER_COMPANIES.map(co => {
-          const active = counts[co]?.재직 || 0;
-          const left   = counts[co]?.퇴직 || 0;
-          const total  = active + left;
-          const pct    = total > 0 ? Math.round((active/total)*100) : 0;
-          return (
-            <div key={co} style={{ flex:'1 1 130px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
-              <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
-              <div style={{ display:'flex', gap:6, marginBottom:6 }}>
-                <span className="badge badge-success">재직 {active}</span>
-                <span className="badge badge-gray">퇴직 {left}</span>
-              </div>
-              {total > 0 && (
-                <div style={{ background:'var(--color-divider)', borderRadius:3, height:4, overflow:'hidden' }}>
-                  <div style={{ width:`${pct}%`, height:'100%', background:'var(--color-success)', borderRadius:3 }}/>
-                </div>
-              )}
+      {[
+        { label:'본사', color:'var(--color-primary)', companies:['PPPP'] },
+        { label:'영업', color:'var(--color-blue)', companies:['영업본부'] },
+        { label:'F&B', color:'var(--color-warning)', companies:['그랑디르','교도리','PZPZ'] },
+      ].map(group => {
+        const gActive = group.companies.reduce((s,c) => s+(counts[c]?.재직||0), 0);
+        const gLeft   = group.companies.reduce((s,c) => s+(counts[c]?.퇴직||0), 0);
+        return (
+          <div key={group.label} style={{ marginBottom:12 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <div style={{ width:3, height:16, background:group.color, borderRadius:2 }}/>
+              <span style={{ fontWeight:700, fontSize:'var(--text-sm)', color:group.color }}>{group.label}</span>
+              <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>재직 {gActive} · 퇴직 {gLeft}</span>
             </div>
-          );
-        })}
-      </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, paddingLeft:12 }}>
+              {group.companies.map(co => {
+                const active = counts[co]?.재직 || 0;
+                const left   = counts[co]?.퇴직 || 0;
+                const total  = active + left;
+                const pct    = total > 0 ? Math.round((active/total)*100) : 0;
+                return (
+                  <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'8px 12px' }}>
+                    <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:4 }}>{co}</div>
+                    <div style={{ display:'flex', gap:4, marginBottom:4 }}>
+                      <span className="badge badge-success">재직 {active}</span>
+                      <span className="badge badge-gray">퇴직 {left}</span>
+                    </div>
+                    {total > 0 && (
+                      <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
+                        <div style={{ width:`${pct}%`, height:'100%', background:group.color, borderRadius:3 }}/>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
