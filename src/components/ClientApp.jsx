@@ -2017,6 +2017,7 @@ function AttendanceMissPage() {
   const [warnModal, setWarnModal] = useState(null);
   const [warnText, setWarnText] = useState('');
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [selQKeys, setSelQKeys] = useState([]);
   const idRef = useRef(1);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
   useEffect(() => {
@@ -2179,37 +2180,63 @@ function AttendanceMissPage() {
         </div>
       )}
 
-      {allNames.length > 0 && (
-        <div className="card">
-          <div className="card-title">분기별 누락 종합</div>
-          <div style={{ overflowX:'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>이름</th>
-                  {allQKeys.map(qk => <th key={qk} style={{ textAlign:'center', whiteSpace:'nowrap' }}>{quarterLabel(qk)}</th>)}
-                  <th style={{ textAlign:'center' }}>전체</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allNames.map(name => {
-                  const total = allQKeys.reduce((s,qk) => s + (qSum[name]?.[qk]||0), 0);
-                  return (
-                    <tr key={name}>
-                      <td style={{ fontWeight:600 }}>{name}</td>
-                      {allQKeys.map(qk => {
-                        const cnt = qSum[name]?.[qk] || 0;
-                        return <td key={qk} style={{ textAlign:'center', fontWeight:cnt>0?700:400, color:cnt>=3?'var(--color-error)':cnt>=2?'var(--color-warning)':cnt>0?'var(--color-text)':'var(--color-text-faint)' }}>{cnt||'-'}</td>;
-                      })}
-                      <td style={{ textAlign:'center', fontWeight:700 }}>{total||'-'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {allNames.length > 0 && (() => {
+        const dispQKeys = selQKeys.length ? allQKeys.filter(qk => selQKeys.includes(qk)) : allQKeys;
+        const sortedNames = [...allNames].sort((a,b) => {
+          const tA = dispQKeys.reduce((s,qk)=>s+(qSum[a]?.[qk]||0),0);
+          const tB = dispQKeys.reduce((s,qk)=>s+(qSum[b]?.[qk]||0),0);
+          return tB - tA;
+        });
+        const toggleQ = (qk) => setSelQKeys(prev => prev.includes(qk) ? prev.filter(k=>k!==qk) : [...prev,qk]);
+        const chipStyle = (qk) => ({
+          padding:'3px 10px', borderRadius:'var(--radius-full)', fontSize:'var(--text-xs)', fontWeight:600,
+          cursor:'pointer', border:'1px solid '+(selQKeys.includes(qk)?'var(--color-primary)':'var(--color-border)'),
+          background: selQKeys.includes(qk)?'var(--color-primary)':'transparent',
+          color: selQKeys.includes(qk)?'#fff':'var(--color-text-muted)',
+        });
+        return (
+          <div className="card">
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, flexWrap:'wrap' }}>
+              <div className="card-title" style={{ marginBottom:0 }}>분기별 누락 종합</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                {allQKeys.map(qk => (
+                  <button key={qk} style={chipStyle(qk)} onClick={()=>toggleQ(qk)}>{quarterLabel(qk)}</button>
+                ))}
+                {selQKeys.length > 0 && (
+                  <button onClick={()=>setSelQKeys([])} style={{ padding:'3px 10px', borderRadius:'var(--radius-full)', fontSize:'var(--text-xs)', fontWeight:600, cursor:'pointer', border:'1px solid var(--color-border)', background:'transparent', color:'var(--color-text-muted)' }}>전체</button>
+                )}
+              </div>
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>이름</th>
+                    {dispQKeys.map(qk => <th key={qk} style={{ textAlign:'center', whiteSpace:'nowrap' }}>{quarterLabel(qk)}</th>)}
+                    <th style={{ textAlign:'center' }}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedNames.map(name => {
+                    const dispTotal = dispQKeys.reduce((s,qk)=>s+(qSum[name]?.[qk]||0),0);
+                    if (selQKeys.length > 0 && dispTotal === 0) return null;
+                    return (
+                      <tr key={name}>
+                        <td style={{ fontWeight:600 }}>{name}</td>
+                        {dispQKeys.map(qk => {
+                          const cnt = qSum[name]?.[qk] || 0;
+                          return <td key={qk} style={{ textAlign:'center', fontWeight:cnt>0?700:400, color:cnt>=3?'var(--color-error)':cnt>=2?'var(--color-warning)':cnt>0?'var(--color-text)':'var(--color-text-faint)' }}>{cnt||'-'}</td>;
+                        })}
+                        <td style={{ textAlign:'center', fontWeight:700, color:dispTotal>=5?'var(--color-error)':dispTotal>=3?'var(--color-warning)':'var(--color-text)' }}>{dispTotal||'-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {warnModal && (
         <div className="modal-overlay open" onClick={() => setWarnModal(null)}>
