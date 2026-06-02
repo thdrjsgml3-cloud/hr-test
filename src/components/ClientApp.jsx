@@ -2018,6 +2018,7 @@ function AttendanceMissPage() {
   const [warnText, setWarnText] = useState('');
   const [ctxMenu, setCtxMenu] = useState(null);
   const [selQKeys, setSelQKeys] = useState([]);
+  const [viewModal, setViewModal] = useState(null);
   const idRef = useRef(1);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r => r.id), 0) + 1 : 1; }, []);
   useEffect(() => {
@@ -2045,12 +2046,12 @@ function AttendanceMissPage() {
   const addRow = () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    save([...records, { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false }]);
+    save([...records, { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false, memo: '' }]);
   };
   const insertRow = (refId, position) => {
     const ref = records.find(r => r.id === refId);
     const ym = ref?.yearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-    const newRow = { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false };
+    const newRow = { id: idRef.current++, yearMonth: ym, name: '', dates: '', count: 0, checked: false, warned: false, memo: '' };
     const idx = records.findIndex(r => r.id === refId);
     const next = [...records];
     next.splice(position === 'above' ? idx : idx + 1, 0, newRow);
@@ -2105,6 +2106,17 @@ function AttendanceMissPage() {
           <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 행 추가</button>
         </div>
       </div>
+      {/* 근태 기준 */}
+      <div style={{ background:'var(--color-warning-light)', border:'1px solid rgba(150,66,25,0.3)', borderRadius:'var(--radius-md)', padding:'10px 16px', marginBottom:16, fontSize:'var(--text-sm)' }}>
+        <div style={{ fontWeight:700, marginBottom:4, color:'var(--color-warning)' }}>📋 근태 기준</div>
+        <div style={{ color:'var(--color-text)', lineHeight:1.8 }}>
+          출·퇴근 미타각, 지각 및 근태 미달 발생 시 아래 패널티가 적용됩니다.<br/>
+          1) 월 <strong>3회</strong> 미타각·지각·근태미달 발생 시 → <strong>경위서 작성</strong><br/>
+          2) 분기 내 경위서 <strong>2회</strong> 발생 시 → <strong>인사위원회 회부</strong> (견책, 감봉, 정직 등)<br/>
+          3) 경위서·인사위원회 회부 기록은 인사 고과에 반영됩니다.
+        </div>
+      </div>
+
       <div className="table-wrap" style={{ marginBottom:24 }}>
         <table className="data-table" style={{ tableLayout:'fixed', width:'100%' }}>
           <colgroup>
@@ -2112,10 +2124,11 @@ function AttendanceMissPage() {
             <col style={{ width:95 }}/>
             <col style={{ width:colW.name }}/>
             <col style={{ width:colW.dates }}/>
-            <col style={{ width:55 }}/>
+            <col style={{ width:70 }}/>
             <col style={{ width:90 }}/>
             <col style={{ width:90 }}/>
-            <col style={{ width:55 }}/>
+            <col/>
+            <col style={{ width:50 }}/>
           </colgroup>
           <thead>
             <tr>
@@ -2132,44 +2145,74 @@ function AttendanceMissPage() {
               <th style={{ textAlign:'center' }}>횟수</th>
               <th style={{ textAlign:'center' }}>점검</th>
               <th style={{ textAlign:'center' }}>경고안내</th>
+              <th>비고</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {sortedMonths.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
+              <tr><td colSpan={9} style={{ textAlign:'center', color:'var(--color-text-faint)', padding:'32px 0' }}>행 추가 버튼을 눌러 데이터를 입력하세요.</td></tr>
             )}
             {sortedMonths.map(ym =>
-              groupMap[ym].map((r, idx) => (
-                <tr key={r.id}>
-                  <td className="row-handle-cell">
-                    <div className="row-handle-dot" onClick={e => { e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
-                  </td>
-                  <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0?'var(--color-surface-offset)':'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
-                    {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
-                  </td>
-                  <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름"/></td>
-                  <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
-                  <td style={{ textAlign:'center', fontWeight:700, color: r.count>=3?'var(--color-error)':r.count>=2?'var(--color-warning)':'var(--color-text)' }}>{r.count||'-'}</td>
-                  <td style={{ textAlign:'center' }}>
-                    {r.checked
-                      ? <span className="badge badge-success" style={{ cursor:'pointer' }} onClick={()=>toggleChecked(r.id)} title="클릭하여 해제">완료</span>
-                      : <button className="btn btn-sm" style={{ background:'var(--color-warning-light)',color:'var(--color-warning)',padding:'3px 8px' }} onClick={()=>toggleChecked(r.id)}>점검중</button>
-                    }
-                  </td>
-                  <td style={{ textAlign:'center' }}>
-                    {r.checked && (r.warned
-                      ? <span className="badge badge-gray">발송됨</span>
-                      : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={()=>openWarn(r)}>경고 안내</button>
-                    )}
-                  </td>
-                  <td><button className="btn btn-sm" style={{ color:'var(--color-error)',opacity:0.6 }} onClick={()=>del(r.id)}>삭제</button></td>
-                </tr>
-              ))
+              groupMap[ym].map((r, idx) => {
+                const over = r.count >= 3;
+                return (
+                  <tr key={r.id} style={over ? { background:'var(--color-error-light)', fontWeight:700 } : {}}>
+                    <td className="row-handle-cell">
+                      <div className="row-handle-dot" onClick={e => { e.stopPropagation(); const rect=e.currentTarget.getBoundingClientRect(); setCtxMenu({x:rect.right+4,y:rect.top-4,id:r.id}); }}>⋮⋮</div>
+                    </td>
+                    <td style={{ fontWeight:600, color:'var(--color-text-muted)', background: idx===0?'var(--color-surface-offset)':'transparent', borderRight:'2px solid var(--color-divider)', whiteSpace:'nowrap' }}>
+                      {idx === 0 ? ym.replace('-','년 ')+'월' : ''}
+                    </td>
+                    <td><input className="inline-input" value={r.name} onChange={e=>update(r.id,'name',e.target.value)} placeholder="이름" style={over?{fontWeight:700}:{}}/></td>
+                    <td><input className="inline-input" value={r.dates} onChange={e=>update(r.id,'dates',e.target.value)} placeholder="9/1 9/5 9/10"/></td>
+                    <td style={{ textAlign:'center' }}>
+                      <div style={{ fontWeight:700, color: over?'var(--color-error)':r.count>=2?'var(--color-warning)':'var(--color-text)' }}>{r.count||'-'}</div>
+                      {over && <div style={{ fontSize:9, color:'var(--color-error)', fontWeight:700, whiteSpace:'nowrap', lineHeight:1.4 }}>경위서 필요</div>}
+                    </td>
+                    <td style={{ textAlign:'center' }}>
+                      {r.checked
+                        ? <span className="badge badge-success" style={{ cursor:'pointer' }} onClick={()=>toggleChecked(r.id)} title="클릭하여 해제">완료</span>
+                        : <button className="btn btn-sm" style={{ background:'var(--color-warning-light)',color:'var(--color-warning)',padding:'3px 8px' }} onClick={()=>toggleChecked(r.id)}>점검중</button>
+                      }
+                    </td>
+                    <td style={{ textAlign:'center' }}>
+                      {r.checked && (r.warned
+                        ? <span className="badge badge-gray" style={{ cursor:'pointer' }} onClick={()=>setViewModal(r)} title="클릭하여 발송 메시지 확인">발송됨 👁</span>
+                        : <button className="btn btn-sm btn-danger" style={{ padding:'3px 8px' }} onClick={()=>openWarn(r)}>경고 안내</button>
+                      )}
+                    </td>
+                    <td><input className="inline-input" value={r.memo||''} onChange={e=>update(r.id,'memo',e.target.value)} placeholder="비고"/></td>
+                    <td><button className="btn btn-sm" style={{ color:'var(--color-error)',opacity:0.6 }} onClick={()=>del(r.id)}>삭제</button></td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {viewModal && (
+        <div className="modal-overlay open" onClick={()=>setViewModal(null)}>
+          <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:560 }}>
+            <div className="modal-header">
+              <div className="modal-title">발송된 경고 메시지 — {viewModal.name}</div>
+              <button className="modal-close" onClick={()=>setViewModal(null)}>✕</button>
+            </div>
+            <div style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', marginBottom:6 }}>발송 당시 내용 (WARN_TEMPLATE 기준)</div>
+            <textarea
+              readOnly
+              value={WARN_TEMPLATE(viewModal.name, viewModal.yearMonth, viewModal.dates, viewModal.count)}
+              style={{ width:'100%', minHeight:200, border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:12, fontSize:'var(--text-sm)', lineHeight:1.7, background:'var(--color-surface-offset)', color:'var(--color-text)', resize:'vertical', fontFamily:'inherit', outline:'none', marginBottom:12 }}
+            />
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className="btn btn-ghost" onClick={()=>setViewModal(null)}>닫기</button>
+              <button className="btn" style={{ background:'var(--color-primary-light)', color:'var(--color-primary)' }}
+                onClick={()=>navigator.clipboard.writeText(WARN_TEMPLATE(viewModal.name, viewModal.yearMonth, viewModal.dates, viewModal.count))}>복사</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {ctxMenu && (
         <div className="row-context-menu" style={{ left:ctxMenu.x, top:ctxMenu.y }} onClick={e=>e.stopPropagation()}>
