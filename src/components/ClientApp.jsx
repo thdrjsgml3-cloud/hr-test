@@ -2013,10 +2013,11 @@ function WorkerPage() {
             </button>
             <button className="btn btn-ghost btn-sm" onClick={async()=>{
               try {
-                const res = await fetch(gasUrl);
+                const proxyUrl = `/api/gas-proxy?url=${encodeURIComponent(gasUrl)}`;
+                const res = await fetch(proxyUrl);
                 const text = await res.text();
-                alert(`HTTP ${res.status}\n\n응답 (앞 500자):\n${text.slice(0,500)}`);
-              } catch(e) { alert('오류: ' + e.message); }
+                alert(`HTTP ${res.status}\n\n응답 (앞 600자):\n${text.slice(0,600)}`);
+              } catch(e) { alert('프록시 오류: ' + e.message); }
             }} style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
               진단
             </button>
