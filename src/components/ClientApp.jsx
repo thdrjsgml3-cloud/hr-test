@@ -1920,7 +1920,7 @@ function GuidePage() {
 /* ═══════════════════════════════════════════
    WORKER PAGE (근로자명부)
 ═══════════════════════════════════════════ */
-const WORKER_GAS_KEY = 'workerGasUrl';
+const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
 const WORKER_SHEETS = [
   {sheetName:'퍼플_재직',    company:'퍼플',    status:'재직'},
   {sheetName:'퍼플_퇴직',    company:'퍼플',    status:'퇴직'},
@@ -1938,43 +1938,40 @@ const WORKER_SHEETS = [
 const WORKER_COMPANIES = ['퍼플','영업본부','그랑디르','교도리','코브','PZPZ'];
 const _workerCache = {};
 
-async function fetchFromGAS(gasUrl) {
-  // 서버 프록시 경유 (CORS 우회)
-  const proxyUrl = `/api/gas-proxy?url=${encodeURIComponent(gasUrl)}`;
-  const res = await fetch(proxyUrl);
+async function fetchWorkerSheetTable(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const text = await res.text();
+  return parseGvizResponse(text);
 }
 
 function WorkerPage() {
-  const [gasUrl, setGasUrl] = useState(() => localStorage.getItem(WORKER_GAS_KEY) || '');
-  const [inputUrl, setInputUrl] = useState('');
   const [allData, setAllData] = useState(_workerCache.__loaded ? { ..._workerCache } : null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!_workerCache.__loaded);
   const [loadError, setLoadError] = useState(null);
   const [selCompany, setSelCompany] = useState('퍼플');
   const [selStatus, setSelStatus] = useState('재직');
   const [search, setSearch] = useState('');
 
-  const saveUrl = () => {
-    const url = inputUrl.trim();
-    if (!url) return;
-    localStorage.setItem(WORKER_GAS_KEY, url);
-    setGasUrl(url);
-    setInputUrl('');
-  };
-
-  const loadAll = useCallback(async (url) => {
-    const target = url || gasUrl;
-    if (!target) return;
+  const loadAll = useCallback(async () => {
     setLoading(true); setLoadError(null);
     try {
-      const data = await fetchFromGAS(target);
-      // data: { 'sheetName': { headers:[], rows:[] }, ... }
-      WORKER_SHEETS.forEach(s => {
+      await Promise.all(WORKER_SHEETS.map(async s => {
         const key = `${s.company}_${s.status}`;
-        _workerCache[key] = data[s.sheetName] || { headers:[], rows:[] };
-      });
+        try {
+          const table = await fetchWorkerSheetTable(s.sheetName);
+          const rawCols = table.cols.slice(2, 10);
+          const headers = rawCols.map(c => (c.label || '').trim()).filter(Boolean);
+          const colCount = headers.length;
+          const rows = table.rows
+            .map(r => r.c.slice(2, 2 + colCount).map(cell => String(extractCellValue(cell) ?? '')))
+            .filter(row => row.some(v => v.trim() !== ''));
+          _workerCache[key] = { headers, rows };
+        } catch (e) {
+          _workerCache[key] = { headers: [], rows: [], error: e.message };
+        }
+      }));
       _workerCache.__loaded = true;
       setAllData({ ..._workerCache });
     } catch (e) {
@@ -1982,12 +1979,12 @@ function WorkerPage() {
     } finally {
       setLoading(false);
     }
-  }, [gasUrl]);
+  }, []);
 
   useEffect(() => {
-    if (gasUrl && !_workerCache.__loaded) loadAll(gasUrl);
-    else if (_workerCache.__loaded) setAllData({ ..._workerCache });
-  }, [gasUrl, loadAll]);
+    if (!_workerCache.__loaded) loadAll();
+    else { setAllData({ ..._workerCache }); setLoading(false); }
+  }, [loadAll]);
 
   const key = `${selCompany}_${selStatus}`;
   const cur = (allData && allData[key]) || { headers:[], rows:[] };
@@ -2005,51 +2002,12 @@ function WorkerPage() {
           <div className="page-title">근로자명부</div>
           <div className="page-desc">사업자별 재직·퇴직 근로자 현황 — Apps Script 연동</div>
         </div>
-        {gasUrl && (
-          <div style={{ display:'flex', gap:6 }}>
-            <button className="btn btn-ghost btn-sm" onClick={()=>loadAll(gasUrl)} disabled={loading}
-              style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-              {loading ? '로딩 중...' : '새로고침'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={async()=>{
-              try {
-                const proxyUrl = `/api/gas-proxy?url=${encodeURIComponent(gasUrl)}`;
-                const res = await fetch(proxyUrl);
-                const text = await res.text();
-                alert(`HTTP ${res.status}\n\n응답 (앞 600자):\n${text.slice(0,600)}`);
-              } catch(e) { alert('프록시 오류: ' + e.message); }
-            }} style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-              진단
-            </button>
-          </div>
-        )}
+        <button className="btn btn-ghost btn-sm" onClick={loadAll} disabled={loading}
+          style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
+          {loading ? '로딩 중...' : '새로고침'}
+        </button>
       </div>
 
-      {/* GAS URL 설정 */}
-      {!gasUrl ? (
-        <div style={{ background:'var(--color-warning-light)', border:'1px solid rgba(150,66,25,0.3)', borderRadius:'var(--radius-md)', padding:'14px 16px', marginBottom:16 }}>
-          <div style={{ fontWeight:700, marginBottom:6, color:'var(--color-warning)' }}>⚙ Apps Script URL 설정 필요</div>
-          <div style={{ fontSize:'var(--text-sm)', color:'var(--color-text)', marginBottom:10, lineHeight:1.6 }}>
-            구글 시트에서 <strong>확장 프로그램 &gt; Apps Script</strong>로 스크립트를 배포한 후<br/>
-            생성된 웹 앱 URL을 아래에 입력하세요.
-          </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <input value={inputUrl} onChange={e=>setInputUrl(e.target.value)}
-              placeholder="https://script.google.com/macros/s/.../exec"
-              style={{ flex:1, padding:'7px 10px', border:'1px solid var(--color-border)', borderRadius:'var(--radius-md)', fontSize:'var(--text-sm)', background:'var(--color-surface)', color:'var(--color-text)', outline:'none' }}
-              onKeyDown={e=>e.key==='Enter'&&saveUrl()}/>
-            <button className="btn btn-primary btn-sm" onClick={saveUrl}>저장 후 불러오기</button>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, fontSize:'var(--text-xs)', color:'var(--color-text-faint)' }}>
-          <span>연결됨: {gasUrl.slice(0,60)}...</span>
-          <button className="btn btn-ghost btn-sm" style={{ fontSize:'var(--text-xs)', padding:'2px 8px' }}
-            onClick={()=>{ localStorage.removeItem(WORKER_GAS_KEY); setGasUrl(''); _workerCache.__loaded=false; setAllData(null); }}>
-            URL 변경
-          </button>
-        </div>
-      )}
 
       {loadError && (
         <div style={{ background:'var(--color-error-light)', color:'var(--color-error)', padding:'10px 16px', borderRadius:'var(--radius-md)', marginBottom:12, fontSize:'var(--text-sm)' }}>
@@ -2128,19 +2086,24 @@ function WorkerSummaryCard() {
     if (_workerCache.__loaded) {
       buildCounts();
     } else {
-      // GAS URL이 있으면 대시보드에서도 자동 로드
-      const url = localStorage.getItem(WORKER_GAS_KEY);
-      if (!url) return;
       setLoading(true);
-      fetchFromGAS(url).then(data => {
-        WORKER_SHEETS.forEach(s => {
-          const key = `${s.company}_${s.status}`;
-          _workerCache[key] = data[s.sheetName] || { headers:[], rows:[] };
-        });
+      Promise.all(WORKER_SHEETS.map(async s => {
+        const key = `${s.company}_${s.status}`;
+        if (_workerCache[key]) return;
+        try {
+          const table = await fetchWorkerSheetTable(s.sheetName);
+          const rawCols = table.cols.slice(2, 10);
+          const headers = rawCols.map(c => (c.label || '').trim()).filter(Boolean);
+          const rows = table.rows
+            .map(r => r.c.slice(2, 2 + headers.length).map(cell => String(extractCellValue(cell) ?? '')))
+            .filter(row => row.some(v => v.trim() !== ''));
+          _workerCache[key] = { headers, rows };
+        } catch { _workerCache[key] = { headers:[], rows:[] }; }
+      })).then(() => {
         _workerCache.__loaded = true;
         buildCounts();
         setLoading(false);
-      }).catch(() => setLoading(false));
+      });
     }
   }, []);
 
