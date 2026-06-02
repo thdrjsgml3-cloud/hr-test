@@ -534,7 +534,11 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
   // 부서 필터
   const [deptFilter, setDeptFilter] = useState('전체');
   // 월 필터
-  const [selMonths, setSelMonths] = useState(() => new Set(ALL_MONTHS));
+  const [selMonths, setSelMonths] = useState(() => {
+    // 기본값: 가장 최근 1개월
+    const last = ALL_MONTHS[ALL_MONTHS.length - 1];
+    return new Set(last ? [last] : ALL_MONTHS);
+  });
   const [showPeriodReport, setShowPeriodReport] = useState(false);
   const toggleMonth = m => setSelMonths(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
   const toggleAll = () => setSelMonths(p => p.size===ALL_MONTHS.length ? new Set() : new Set(ALL_MONTHS));
@@ -638,7 +642,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
       </div>
 
       {/* 입퇴사자 현황 */}
-      <WorkerSummaryCard/>
+      <WorkerSummaryCard selMonths={selMonths}/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -1922,20 +1926,121 @@ function GuidePage() {
 ═══════════════════════════════════════════ */
 const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
 const WORKER_SHEETS = [
-  {sheetName:'퍼플_재직',    company:'퍼플',    status:'재직'},
-  {sheetName:'퍼플_퇴직',    company:'퍼플',    status:'퇴직'},
+  {sheetName:'퍼플_재직',    company:'PPPP',    status:'재직'},
+  {sheetName:'퍼플_퇴직',    company:'PPPP',    status:'퇴직'},
   {sheetName:'영업본부_명부', company:'영업본부', status:'재직'},
   {sheetName:'영업본부_해촉', company:'영업본부', status:'퇴직'},
   {sheetName:'그랑디르_재직', company:'그랑디르', status:'재직'},
   {sheetName:'그랑디르_퇴직', company:'그랑디르', status:'퇴직'},
   {sheetName:'교도리_재직',  company:'교도리',  status:'재직'},
   {sheetName:'교도리_퇴직',  company:'교도리',  status:'퇴직'},
-  {sheetName:'코브_재직',    company:'코브',    status:'재직'},
-  {sheetName:'코브_퇴직',    company:'코브',    status:'퇴직'},
   {sheetName:'PZPZ_재직',   company:'PZPZ',   status:'재직'},
   {sheetName:'PZPZ_퇴직',   company:'PZPZ',   status:'퇴직'},
 ];
-const WORKER_COMPANIES = ['퍼플','영업본부','그랑디르','교도리','코브','PZPZ'];
+const WORKER_COMPANIES = ['PPPP','영업본부','그랑디르','교도리','PZPZ'];
+
+// 시트별 처리 규칙
+const SHEET_RULES = {
+  'PPPP_재직':     { addGenderAge:true },
+  'PPPP_퇴직':     { addGenderAge:true, excludeContains:['직무'], addRetiredCol:true },
+  '영업본부_재직':  { addGenderAge:true, excludeContains:['해촉'], statusLabel:'위촉' },
+  '영업본부_퇴직':  { addGenderAge:true, skipRows:10,
+    renameHeaders:{'*지인 제외':'본부','*26/01/26 이후 기준':'본부장','*투입 인원 대비':'이름'},
+    includeContains:['본부','본부장','이름','위촉일자','해촉일자','해촉 사유','해촉사유'] },
+  '그랑디르_재직':  { addGenderAge:true, excludeContains:['근속'] },
+  '그랑디르_퇴직':  { addGenderAge:true, excludeContains:['근속'], addRetiredCol:true },
+  '교도리_재직':   { addGenderAge:true, excludeContains:['근속'] },
+  '교도리_퇴직':   { addGenderAge:true, addRetiredCol:true },
+  'PZPZ_재직':    { addGenderAge:true, excludeContains:['근속'] },
+  'PZPZ_퇴직':    { addGenderAge:true, excludeContains:['근속'], addRetiredCol:true },
+};
+
+// 주민번호 → 성별/나이
+function calcGenderAge(val) {
+  if (!val) return null;
+  const clean = String(val).replace(/[-\s]/g, '');
+  if (clean.length < 7 || !/^\d+$/.test(clean.slice(0,6))) return null;
+  const g = parseInt(clean[6]);
+  const gender = [1,3,5,7,9].includes(g) ? '남' : [2,4,6,8,0].includes(g) ? '여' : '';
+  const yy = parseInt(clean.slice(0,2));
+  const year = g<=2 ? 1900+yy : g<=4 ? 2000+yy : 1800+yy;
+  const mm = parseInt(clean.slice(2,4)), dd = parseInt(clean.slice(4,6));
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth()+1 < mm || (today.getMonth()+1 === mm && today.getDate() < dd)) age--;
+  return { gender, age: String(age) };
+}
+
+// 시트 데이터 후처리
+function applySheetRules(key, rawHeaders, rawRows) {
+  const rules = SHEET_RULES[key];
+  if (!rules) return { headers: rawHeaders, rows: rawRows };
+
+  let headers = [...rawHeaders];
+  let rows = rawRows.map(r => [...r]);
+
+  // 행 스킵
+  if (rules.skipRows > 0) rows = rows.slice(rules.skipRows);
+
+  // 헤더 이름 변경
+  if (rules.renameHeaders) {
+    headers = headers.map(h => {
+      const found = Object.entries(rules.renameHeaders).find(([k]) => h.includes(k));
+      return found ? found[1] : h;
+    });
+  }
+
+  // 주민번호 열 자동 탐지
+  let residentIdx = headers.findIndex(h => h.includes('주민'));
+  if (residentIdx < 0) {
+    for (let ci = 0; ci < headers.length; ci++) {
+      const samples = rows.slice(0,5).map(r => String(r[ci]||''));
+      if (samples.some(v => /^\d{6}-?\d{7}$/.test(v.trim()))) { residentIdx = ci; break; }
+    }
+  }
+
+  // 포함할 열 인덱스 결정
+  let idxs = headers.map((_,i) => i);
+
+  if (rules.includeContains?.length) {
+    idxs = rules.includeContains
+      .map(inc => headers.findIndex(h => h.includes(inc)))
+      .filter(i => i >= 0);
+  }
+
+  if (rules.excludeContains?.length) {
+    idxs = idxs.filter(i => !rules.excludeContains.some(ex => headers[i].includes(ex)));
+  }
+
+  // 주민번호 열은 표시에서 제외
+  if (residentIdx >= 0) idxs = idxs.filter(i => i !== residentIdx);
+
+  // 퇴사일자 열 탐지 및 추가
+  let retiredIdx = -1;
+  if (rules.addRetiredCol) {
+    retiredIdx = headers.findIndex(h => h.includes('퇴사') || h.includes('퇴직') || h.includes('해촉') && h.includes('일'));
+    if (retiredIdx >= 0 && !idxs.includes(retiredIdx)) {
+      // 입사일자 다음에 삽입
+      const joinPos = idxs.findIndex(i => headers[i].includes('입사'));
+      if (joinPos >= 0) idxs.splice(joinPos+1, 0, retiredIdx);
+      else idxs.push(retiredIdx);
+    }
+  }
+
+  const finalHeaders = idxs.map(i => headers[i]);
+  const finalRows = rows.map(r => idxs.map(i => String(r[i]??'')));
+
+  // 성별/나이 추가
+  if (rules.addGenderAge && residentIdx >= 0) {
+    finalHeaders.push('성별', '나이');
+    rows.forEach((r, ri) => {
+      const ga = calcGenderAge(r[residentIdx]);
+      finalRows[ri].push(ga?.gender||'-', ga?.age||'-');
+    });
+  }
+
+  return { headers: finalHeaders, rows: finalRows };
+}
 const _workerCache = {};
 
 function parseGvizResponse(text) {
@@ -1969,13 +2074,15 @@ function WorkerPage() {
         const key = `${s.company}_${s.status}`;
         try {
           const table = await fetchWorkerSheetTable(s.sheetName);
-          const rawCols = table.cols.slice(2, 10);
-          const headers = rawCols.map(c => (c.label || '').trim()).filter(Boolean);
-          const colCount = headers.length;
-          const rows = table.rows
+          // C열(index 2)부터 전체 열 가져오기 (주민번호, 퇴사일자 등 포함)
+          const rawCols = table.cols.slice(2);
+          const rawHeaders = rawCols.map(c => (c.label || '').trim());
+          const colCount = rawCols.length;
+          const rawRows = table.rows
             .map(r => r.c.slice(2, 2 + colCount).map(cell => String(extractCellValue(cell) ?? '')))
             .filter(row => row.some(v => v.trim() !== ''));
-          _workerCache[key] = { headers, rows };
+          const processed = applySheetRules(key, rawHeaders, rawRows);
+          _workerCache[key] = processed;
         } catch (e) {
           _workerCache[key] = { headers: [], rows: [], error: e.message };
         }
@@ -2000,8 +2107,16 @@ function WorkerPage() {
     ? cur.rows.filter(row => row.some(v => String(v).toLowerCase().includes(search.toLowerCase())))
     : cur.rows;
 
-  const statusLabel = (company, status) =>
-    company === '영업본부' ? (status === '재직' ? '명부' : '해촉') : status;
+  const statusLabel = (company, status) => {
+    const key = `${company}_${status}`;
+    const rule = SHEET_RULES[key];
+    if (rule?.statusLabel) return rule.statusLabel;
+    if (company === '영업본부') return status === '재직' ? '위촉' : '해촉';
+    return status;
+  };
+
+  // 회사 탭 변경 시 재직으로 초기화
+  const handleCompanyChange = (c) => { setSelCompany(c); setSelStatus('재직'); };
 
   return (
     <div>
@@ -2055,7 +2170,7 @@ function WorkerPage() {
         {WORKER_COMPANIES.map(c => {
           const reCount = _workerCache[`${c}_재직`]?.rows.length ?? 0;
           return (
-            <button key={c} className={`tab-btn ${selCompany===c?'active':''}`} onClick={()=>setSelCompany(c)}>
+            <button key={c} className={`tab-btn ${selCompany===c?'active':''}`} onClick={()=>handleCompanyChange(c)}>
               {c}{reCount > 0 && <span className="nav-count" style={{ marginLeft:4 }}>{reCount}</span>}
             </button>
           );
@@ -2113,7 +2228,7 @@ function WorkerPage() {
 }
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
-function WorkerSummaryCard() {
+function WorkerSummaryCard({ selMonths }) {
   const [counts, setCounts] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -2127,12 +2242,12 @@ function WorkerSummaryCard() {
         if (_workerCache[key]) return;
         try {
           const table = await fetchWorkerSheetTable(s.sheetName);
-          const rawCols = table.cols.slice(2, 10);
-          const headers = rawCols.map(c => (c.label || '').trim()).filter(Boolean);
-          const rows = table.rows
-            .map(r => r.c.slice(2, 2 + headers.length).map(cell => String(extractCellValue(cell) ?? '')))
+          const rawCols = table.cols.slice(2);
+          const rawHeaders = rawCols.map(c => (c.label || '').trim());
+          const rawRows = table.rows
+            .map(r => r.c.slice(2, 2 + rawCols.length).map(cell => String(extractCellValue(cell) ?? '')))
             .filter(row => row.some(v => v.trim() !== ''));
-          _workerCache[key] = { headers, rows };
+          _workerCache[key] = applySheetRules(key, rawHeaders, rawRows);
         } catch { _workerCache[key] = { headers:[], rows:[] }; }
       })).then(() => {
         _workerCache.__loaded = true;
@@ -2162,6 +2277,32 @@ function WorkerSummaryCard() {
   const totalActive = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.재직||0)),0);
   const totalLeft   = WORKER_COMPANIES.reduce((s,c)=>(s+(counts[c]?.퇴직||0)),0);
 
+  // 전월 대비 (selMonths가 정확히 1개월일 때)
+  const selArr = selMonths ? [...selMonths].sort() : [];
+  let prevMonthLabel = null, prevCounts = null;
+  if (selArr.length === 1 && _workerCache.__loaded) {
+    const [y, m] = selArr[0].split('-').map(Number);
+    const prevY = m === 1 ? y - 1 : y;
+    const prevM = m === 1 ? 12 : m - 1;
+    prevMonthLabel = `${prevY}년 ${prevM}월`;
+    // 전월 재직자 = 해당 월에 입사일 ≤ 전월말, 퇴사일 > 전월말인 인원
+    // 간단 근사: 당월 재직수 vs 전체 재직수 비교 불가 → 캐시에 날짜 데이터가 있으면 계산
+    // 현재 구현에서는 입사일자를 기준으로 당월 입사자, 퇴직에서 당월 퇴사자를 카운트
+    const selYM = selArr[0]; // YYYY-MM
+    const newJoin = {}, newLeft = {};
+    WORKER_COMPANIES.forEach(co => {
+      const activeData = _workerCache[`${co}_재직`];
+      const leftData = _workerCache[`${co}_퇴직`];
+      const joinCol = activeData?.headers?.findIndex(h => h.includes('입사')) ?? -1;
+      const leftCol = leftData?.headers?.findIndex(h => h.includes('퇴사') || h.includes('해촉일')) ?? -1;
+      newJoin[co] = joinCol >= 0 ? (activeData?.rows||[]).filter(r => String(r[joinCol]||'').startsWith(selYM)).length : 0;
+      newLeft[co] = leftCol >= 0 ? (leftData?.rows||[]).filter(r => String(r[leftCol]||'').startsWith(selYM)).length : 0;
+    });
+    const totalJoin = WORKER_COMPANIES.reduce((s,c)=>s+(newJoin[c]||0),0);
+    const totalLeft2 = WORKER_COMPANIES.reduce((s,c)=>s+(newLeft[c]||0),0);
+    prevCounts = { newJoin, newLeft, totalJoin, totalLeft: totalLeft2 };
+  }
+
   return (
     <div className="card" style={{ marginBottom:20 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
@@ -2171,6 +2312,18 @@ function WorkerSummaryCard() {
           <span>전체 퇴직 <strong style={{ color:'var(--color-text-muted)' }}>{totalLeft}명</strong></span>
         </div>
       </div>
+      {prevCounts && (
+        <div style={{ display:'flex', gap:16, marginBottom:14, padding:'8px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap' }}>
+          <span style={{ fontWeight:600, color:'var(--color-text-muted)' }}>{selArr[0].replace('-','년 ')}월 기준</span>
+          <span>당월 입사 <strong style={{ color:'var(--color-success)' }}>+{prevCounts.totalJoin}명</strong></span>
+          <span>당월 퇴사 <strong style={{ color:'var(--color-error)' }}>-{prevCounts.totalLeft}명</strong></span>
+          <span style={{ color:'var(--color-text-faint)' }}>
+            {WORKER_COMPANIES.filter(co => prevCounts.newJoin[co] > 0 || prevCounts.newLeft[co] > 0).map(co =>
+              `${co} 입사${prevCounts.newJoin[co]} 퇴사${prevCounts.newLeft[co]}`
+            ).join(' | ')}
+          </span>
+        </div>
+      )}
       <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
         {WORKER_COMPANIES.map(co => {
           const active = counts[co]?.재직 || 0;
