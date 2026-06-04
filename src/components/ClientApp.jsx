@@ -535,9 +535,9 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
   const [deptFilter, setDeptFilter] = useState('본사');
   // 월 필터
   const [selMonths, setSelMonths] = useState(() => {
-    // 기본값: 가장 최근 1개월
-    const last = ALL_MONTHS[ALL_MONTHS.length - 1];
-    return new Set(last ? [last] : ALL_MONTHS);
+    // 기본값: 2026-01 ~ 최신 월
+    const defaults = ALL_MONTHS.filter(m => m >= '2026-01');
+    return new Set(defaults.length ? defaults : ALL_MONTHS);
   });
   const [showPeriodReport, setShowPeriodReport] = useState(false);
   const toggleMonth = m => setSelMonths(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
