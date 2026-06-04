@@ -1764,6 +1764,10 @@ function GuidePage() {
   // 새 ID 생성
   const newId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 
+  const toggleSectionWide = (sid) => {
+    save(sectionsRef.current.map(s => s.id === sid ? { ...s, wide: !s.wide } : s));
+  };
+
   const moveSection = (sid, dir) => {
     const arr = [...sectionsRef.current];
     const idx = arr.findIndex(s => s.id === sid);
@@ -1883,7 +1887,7 @@ function GuidePage() {
       <div style={{ display:'flex', flexWrap:'wrap', gap:16 }}>
         {sections.map(s => (
           <div key={s.id}
-            style={{ flex: s.items.length === 1 ? '1 1 420px' : '1 1 100%', minWidth:0, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-sm)', overflow:'hidden' }}
+            style={{ flex: (!s.wide && s.items.length === 1) ? '1 1 420px' : '1 1 100%', minWidth:0, background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-sm)', overflow:'hidden' }}
             onDragOver={e => onSectionDragOver(e, s.id)}
             onDragLeave={onSectionDragLeave}
             onDrop={e => onSectionDrop(e, s.id)}
@@ -1907,6 +1911,9 @@ function GuidePage() {
                 title="위로 이동" onClick={() => moveSection(s.id, -1)}>↑</button>
               <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-text-faint)', padding:'3px 6px', fontSize:'var(--text-xs)' }}
                 title="아래로 이동" onClick={() => moveSection(s.id, 1)}>↓</button>
+              <button className="btn btn-sm"
+                style={{ flexShrink:0, padding:'3px 7px', fontSize:'var(--text-xs)', background: s.wide ? 'var(--color-primary)' : 'transparent', color: s.wide ? '#fff' : 'var(--color-text-faint)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)' }}
+                title={s.wide ? '좁게 (같은 줄 배치)' : '넓게 (단독 줄 배치)'} onClick={() => toggleSectionWide(s.id)}>↔</button>
               <button className="btn btn-sm" style={{ flexShrink:0, background:'var(--color-primary-light)', color:'var(--color-primary)', padding:'3px 10px', fontSize:'var(--text-xs)' }}
                 onClick={() => addItem(s.id)}>+ 항목 추가</button>
               <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-error)', opacity:0.7, padding:'3px 8px', fontSize:'var(--text-xs)' }}
