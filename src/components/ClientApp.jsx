@@ -614,8 +614,8 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
         ))}
       </div>
 
-      {/* 입퇴사자 현황 */}
-      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
+      {/* 구성원 현황 차트 (기간 무관) */}
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter} onlyCharts={true}/>
 
       {/* 월 필터 */}
       <div className="card" style={{marginBottom:16,padding:'12px 16px'}}>
@@ -643,6 +643,9 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
           </div>
         ))}
       </div>
+
+      {/* 입퇴사자 현황 (기간 연동) */}
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -2401,7 +2404,7 @@ const COMPANY_GROUPS = [
   { label:'F&B', key:'fnb',    color:'var(--color-warning)',  companies:['그랑디르','교도리','PZPZ'] },
 ];
 
-function WorkerSummaryCard({ selMonths, deptFilter }) {
+function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false }) {
   const [loaded, setLoaded] = useState(_workerCache.__loaded);
   const [loading, setLoading] = useState(!_workerCache.__loaded);
 
@@ -2491,24 +2494,34 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
       : `${selArr.length}개월`
     : '전체';
 
-  if (loading) return (
-    <div className="card" style={{ marginBottom:20 }}>
-      <div className="card-title">입퇴사자 현황</div>
-      <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', padding:'8px 0' }}>데이터 로딩 중...</div>
-    </div>
-  );
+  // 기간 선택 전(위): 구성원 현황 차트만 렌더
+  if (onlyCharts) {
+    if (loading) return (
+      <div className="card" style={{ marginBottom:20 }}>
+        <div className="card-title">구성원 현황</div>
+        <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', padding:'8px 0' }}>데이터 로딩 중...</div>
+      </div>
+    );
+    if (!loaded || deptFilter !== '본사') return null;
+    return (
+      <div className="card" style={{ marginBottom:20 }}>
+        <div className="card-title" style={{ marginBottom:10 }}>구성원 현황</div>
+        <BonsaDemographicsChart/>
+      </div>
+    );
+  }
 
+  // 기간 선택 후(아래): 입사/퇴사 수
+  if (loading) return null;
   return (
     <div className="card" style={{ marginBottom:20 }}>
-      {/* 헤더 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
         <div className="card-title" style={{ marginBottom:0 }}>입퇴사자 현황</div>
         <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}>
-          {monthLabel} · {isAllMonths ? '재직' : '입사'} {gTotal.active} · {isAllMonths ? '퇴직' : '퇴사'} {gTotal.left}
+          {monthLabel} · {isAllMonths?'재직':'입사'} {gTotal.active} · {isAllMonths?'퇴직':'퇴사'} {gTotal.left}
         </span>
       </div>
 
-      {/* 전월 대비 */}
       {prevDelta && (
         <div style={{ display:'flex', gap:16, marginBottom:10, padding:'6px 12px', background:'var(--color-surface-2)', borderRadius:'var(--radius-md)', fontSize:'var(--text-xs)', flexWrap:'wrap', alignItems:'center' }}>
           <span style={{ color:'var(--color-text-muted)', fontWeight:600 }}>전월 대비</span>
@@ -2518,8 +2531,8 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
           ].map(({label, d, prev, cur}) => (
             <span key={label}>
               {label}{' '}
-              <strong style={{ color: d > 0 ? 'var(--color-blue)' : d < 0 ? 'var(--color-error)' : 'var(--color-text-muted)' }}>
-                {d > 0 ? '▲' : d < 0 ? '▼' : '━'} {Math.abs(d)}
+              <strong style={{ color: d>0?'var(--color-blue)':d<0?'var(--color-error)':'var(--color-text-muted)' }}>
+                {d>0?'▲':d<0?'▼':'━'} {Math.abs(d)}
               </strong>
               <span style={{ color:'var(--color-text-faint)', marginLeft:4 }}>({prev}→{cur})</span>
             </span>
@@ -2527,13 +2540,9 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
         </div>
       )}
 
-      {/* 그룹별 회사 카드 */}
-      {/* 본사 선택 시: 성별/연령대 현황 */}
-      {deptFilter === '본사' && loaded && <BonsaDemographicsChart/>}
-
       {visibleGroups.map(group => (
-        <div key={group.key} style={{ marginBottom: visibleGroups.length > 1 ? 10 : 0 }}>
-          {visibleGroups.length > 1 && (
+        <div key={group.key} style={{ marginBottom: visibleGroups.length>1?10:0 }}>
+          {visibleGroups.length>1 && (
             <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
               <div style={{ width:3, height:14, background:group.color, borderRadius:2 }}/>
               <span style={{ fontWeight:700, fontSize:'var(--text-xs)', color:group.color }}>{group.label}</span>
@@ -2542,8 +2551,8 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {group.companies.map(co => {
               const { active, left } = getCompanyCounts(co);
-              const total = active + left;
-              const pct   = total > 0 ? Math.round((active/total)*100) : 0;
+              const total = active+left;
+              const pct   = total>0 ? Math.round((active/total)*100) : 0;
               return (
                 <div key={co} style={{ flex:'1 1 120px', background:'var(--color-surface-2)', border:'1px solid var(--color-divider)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
                   <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:6 }}>{co}</div>
@@ -2551,7 +2560,7 @@ function WorkerSummaryCard({ selMonths, deptFilter }) {
                     <span className="badge badge-success">{isAllMonths?'재직':'입사'} {active}</span>
                     <span className="badge badge-gray">{isAllMonths?'퇴직':'퇴사'} {left}</span>
                   </div>
-                  {total > 0 && (
+                  {total>0 && (
                     <div style={{ background:'var(--color-divider)', borderRadius:3, height:3, overflow:'hidden' }}>
                       <div style={{ width:`${pct}%`, height:'100%', background:group.color, borderRadius:3 }}/>
                     </div>
