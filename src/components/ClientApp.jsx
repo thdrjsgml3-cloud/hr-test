@@ -1761,6 +1761,32 @@ function GuidePage() {
     save(sectionsRef.current.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, content: value } : i) })));
   };
 
+  // 새 ID 생성
+  const newId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+
+  const addSection = () => {
+    const next = [...sectionsRef.current, { id: newId('s'), title: '새 전형', items: [{ id: newId('i'), title: '새 항목', content: '' }] }];
+    save(next);
+  };
+
+  const deleteSection = (sid) => {
+    if (!confirm('이 섹션을 삭제하시겠습니까?')) return;
+    save(sectionsRef.current.filter(s => s.id !== sid));
+  };
+
+  const addItem = (sid) => {
+    save(sectionsRef.current.map(s =>
+      s.id !== sid ? s : { ...s, items: [...s.items, { id: newId('i'), title: '새 항목', content: '' }] }
+    ));
+  };
+
+  const deleteItem = (sid, itemId) => {
+    if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+    save(sectionsRef.current.map(s =>
+      s.id !== sid ? s : { ...s, items: s.items.filter(i => i.id !== itemId) }
+    ));
+  };
+
   const copyItem = (itemId) => {
     let txt = '';
     sectionsRef.current.forEach(s => s.items.forEach(i => { if (i.id === itemId) txt = i.content; }));
@@ -1839,8 +1865,11 @@ function GuidePage() {
       <div className="page-header">
         <div>
           <div className="page-title">채용 안내</div>
-          <div className="page-desc">전형별 안내 문자·이메일 템플릿 — ⠿ 아이콘을 드래그하여 순서 변경, 제목 클릭하여 수정</div>
+          <div className="page-desc">전형별 안내 문자·이메일 템플릿 — ⠿ 드래그로 순서 변경, 제목 클릭으로 수정</div>
         </div>
+        <button className="btn btn-primary" onClick={addSection}>
+          <Plus size={14}/> 전형 추가
+        </button>
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:16 }}>
         {sections.map(s => (
@@ -1865,6 +1894,10 @@ function GuidePage() {
                 onBlurCapture={e => e.target.style.background='transparent'}
                 style={titleInputStyle(true)}
               />
+              <button className="btn btn-sm" style={{ flexShrink:0, background:'var(--color-primary-light)', color:'var(--color-primary)', padding:'3px 10px', fontSize:'var(--text-xs)' }}
+                onClick={() => addItem(s.id)}>+ 항목 추가</button>
+              <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-error)', opacity:0.7, padding:'3px 8px', fontSize:'var(--text-xs)' }}
+                onClick={() => deleteSection(s.id)}>✕</button>
             </div>
             {/* Items */}
             <div style={{ display:'flex', flexDirection:'row', flexWrap:'wrap', gap:12, padding:12 }}>
@@ -1900,7 +1933,11 @@ function GuidePage() {
                       onFocus={e => e.target.style.borderColor='var(--color-primary)'}
                       onBlurCapture={e => e.target.style.borderColor='var(--color-border)'}
                     />
-                    <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+                      <button
+                        onClick={() => deleteItem(s.id, item.id)}
+                        style={{ fontSize:'var(--text-xs)', color:'var(--color-error)', opacity:0.6, background:'none', border:'none', cursor:'pointer', padding:'4px 8px' }}
+                      >삭제</button>
                       <button
                         onClick={() => copyItem(item.id)}
                         style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'4px 14px', borderRadius:'var(--radius-sm)', fontSize:'var(--text-xs)', fontWeight:600, background:'var(--color-primary-light)', color:'var(--color-primary)', border:'none', cursor:'pointer' }}
