@@ -1764,6 +1764,15 @@ function GuidePage() {
   // 새 ID 생성
   const newId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 
+  const moveSection = (sid, dir) => {
+    const arr = [...sectionsRef.current];
+    const idx = arr.findIndex(s => s.id === sid);
+    const to  = idx + dir;
+    if (to < 0 || to >= arr.length) return;
+    [arr[idx], arr[to]] = [arr[to], arr[idx]];
+    save(arr);
+  };
+
   const addSection = () => {
     const next = [...sectionsRef.current, { id: newId('s'), title: '새 전형', items: [{ id: newId('i'), title: '새 항목', content: '' }] }];
     save(next);
@@ -1894,6 +1903,10 @@ function GuidePage() {
                 onBlurCapture={e => e.target.style.background='transparent'}
                 style={titleInputStyle(true)}
               />
+              <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-text-faint)', padding:'3px 6px', fontSize:'var(--text-xs)' }}
+                title="위로 이동" onClick={() => moveSection(s.id, -1)}>↑</button>
+              <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-text-faint)', padding:'3px 6px', fontSize:'var(--text-xs)' }}
+                title="아래로 이동" onClick={() => moveSection(s.id, 1)}>↓</button>
               <button className="btn btn-sm" style={{ flexShrink:0, background:'var(--color-primary-light)', color:'var(--color-primary)', padding:'3px 10px', fontSize:'var(--text-xs)' }}
                 onClick={() => addItem(s.id)}>+ 항목 추가</button>
               <button className="btn btn-sm" style={{ flexShrink:0, color:'var(--color-error)', opacity:0.7, padding:'3px 8px', fontSize:'var(--text-xs)' }}
