@@ -3782,7 +3782,11 @@ export default function ClientApp() {
           setOnboards(o);
           setProposals(p);
           if (c) setCosts(c);
-          if (j && j.length > 0) setJDs(j);
+          if (j && j.length > 0) {
+            // localStorage에 저장된 상태 오버라이드 적용 (서버 재시도 타이머로 인한 덮어쓰기 방지)
+            const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
+            setJDs(j.map(jd => ({ ...jd, status: overrides[jd.id] || jd.status })));
+          }
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
@@ -3928,6 +3932,10 @@ export default function ClientApp() {
 
   const saveAllJDs = useCallback((rows) => {
     setJDs(rows);
+    // 상태를 localStorage에도 저장 (서버 재시도 덮어쓰기 방지)
+    const overrides = {};
+    rows.forEach(r => { overrides[r.id] = r.status; });
+    localStorage.setItem('jd_status_overrides', JSON.stringify(overrides));
     apiSaveAllJDs(rows).catch(console.error);
   }, []);
 
