@@ -2068,7 +2068,7 @@ function calcGenderAge(val) {
   const g = parseInt(clean[6]);
   const gender = [1,3,5,7,9].includes(g) ? '남' : [2,4,6,8,0].includes(g) ? '여' : '';
   const yy = parseInt(clean.slice(0,2));
-  const year = g<=2 ? 1900+yy : g<=4 ? 2000+yy : 1800+yy;
+  const year = g<=2 ? 1900+yy : g<=4 ? 2000+yy : g<=6 ? 1900+yy : g<=8 ? 2000+yy : 1800+yy;
   const mm = parseInt(clean.slice(2,4)), dd = parseInt(clean.slice(4,6));
   const today = new Date();
   let age = today.getFullYear() - year;
