@@ -615,7 +615,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
       </div>
 
       {/* 구성원 현황 차트 (기간 무관) */}
-      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter} onlyCharts={true}/>
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter} onlyCharts={true} onNavigate={onNavigate}/>
 
       {/* 월 필터 */}
       <div className="card" style={{marginBottom:16,padding:'12px 16px'}}>
@@ -645,7 +645,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
       </div>
 
       {/* 입퇴사자 현황 (기간 연동) */}
-      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter}/>
+      <WorkerSummaryCard selMonths={selMonths} deptFilter={deptFilter} onNavigate={onNavigate}/>
 
       <div className="charts-grid">
         <div className="chart-card">
@@ -2174,13 +2174,21 @@ async function fetchWorkerSheetTable(sheetName) {
   return parseGvizResponse(text);
 }
 
-function WorkerPage() {
+function WorkerPage({ filter, setFilter }) {
   const [allData, setAllData] = useState(_workerCache.__loaded ? { ..._workerCache } : null);
   const [loading, setLoading] = useState(!_workerCache.__loaded);
   const [loadError, setLoadError] = useState(null);
   const [selCompany, setSelCompany] = useState('PPPP');
   const [selStatus, setSelStatus] = useState('재직');
   const [search, setSearch] = useState('');
+
+  // 대시보드 차트에서 필터 클릭 시 자동으로 PPPP 재직으로 이동
+  useEffect(() => {
+    if (filter) {
+      setSelCompany('PPPP');
+      setSelStatus('재직');
+    }
+  }, [filter]);
 
   const loadAll = useCallback(async () => {
     setLoading(true); setLoadError(null);
@@ -2218,9 +2226,45 @@ function WorkerPage() {
 
   const key = `${selCompany}_${selStatus}`;
   const cur = (allData && allData[key]) || { headers:[], rows:[] };
-  const filtered = search
+  let filtered = search
     ? cur.rows.filter(row => row.some(v => String(v).toLowerCase().includes(search.toLowerCase())))
     : cur.rows;
+
+  if (filter && selCompany === 'PPPP' && selStatus === '재직') {
+    const { filterType, filterValue } = filter;
+    if (filterType === 'gender') {
+      const gIdx = cur.headers.indexOf('성별');
+      if (gIdx >= 0) filtered = filtered.filter(r => String(r[gIdx]) === filterValue);
+    } else if (filterType === 'ageGroup') {
+      const aIdx = cur.headers.indexOf('나이');
+      if (aIdx >= 0) filtered = filtered.filter(r => {
+        const age = parseInt(r[aIdx]);
+        if (filterValue === '20대') return age >= 20 && age < 30;
+        if (filterValue === '30대') return age >= 30 && age < 40;
+        if (filterValue === '40대') return age >= 40 && age < 50;
+        if (filterValue === '50대↑') return age >= 50;
+        return true;
+      });
+    } else if (filterType === 'tenureGroup') {
+      const jIdx = cur.headers.findIndex(h => h.includes('입사'));
+      if (jIdx >= 0) {
+        const now = new Date();
+        filtered = filtered.filter(r => {
+          const raw = String(r[jIdx]||'').trim().replace(/\./g,'-');
+          const joinDate = new Date(raw);
+          if (isNaN(joinDate.getTime())) return false;
+          const months = (now.getFullYear()-joinDate.getFullYear())*12 + (now.getMonth()-joinDate.getMonth());
+          if (filterValue === '3개월 미만') return months < 3;
+          if (filterValue === '3~6개월') return months >= 3 && months < 6;
+          if (filterValue === '6~12개월') return months >= 6 && months < 12;
+          if (filterValue === '12~24개월') return months >= 12 && months < 24;
+          if (filterValue === '24~36개월') return months >= 24 && months < 36;
+          if (filterValue === '36개월↑') return months >= 36;
+          return true;
+        });
+      }
+    }
+  }
 
   const statusLabel = (company, status) => {
     const key = `${company}_${status}`;
@@ -2230,8 +2274,8 @@ function WorkerPage() {
     return status;
   };
 
-  // 회사 탭 변경 시 재직으로 초기화
-  const handleCompanyChange = (c) => { setSelCompany(c); setSelStatus('재직'); };
+  // 회사 탭 변경 시 재직으로 초기화 + 필터 해제
+  const handleCompanyChange = (c) => { setSelCompany(c); setSelStatus('재직'); setFilter?.(null); };
 
   return (
     <div>
@@ -2293,12 +2337,12 @@ function WorkerPage() {
       </div>
 
       {/* PPPP만 재직/퇴직 탭 표시, 나머지는 재직만 */}
-      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
         {selCompany === 'PPPP' ? (
           ['재직','퇴직'].map(st => (
             <button key={st} className="btn btn-sm"
               style={{ background: selStatus===st?'var(--color-primary)':'var(--color-surface-offset)', color: selStatus===st?'#fff':'var(--color-text-muted)', padding:'4px 14px' }}
-              onClick={()=>setSelStatus(st)}>
+              onClick={()=>{ setSelStatus(st); setFilter?.(null); }}>
               {statusLabel(selCompany, st)}
               {(_workerCache[`${selCompany}_${st}`]?.rows.length ?? 0) > 0 &&
                 <span style={{ marginLeft:4, fontSize:10 }}>({_workerCache[`${selCompany}_${st}`].rows.length})</span>}
@@ -2308,6 +2352,13 @@ function WorkerPage() {
           <span style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', padding:'4px 0' }}>
             {statusLabel(selCompany, '재직')} {_workerCache[`${selCompany}_재직`]?.rows.length ?? 0}명
           </span>
+        )}
+        {filter && (
+          <div style={{ display:'flex', alignItems:'center', gap:4, background:'var(--color-primary)', color:'#fff', borderRadius:12, padding:'3px 10px', fontSize:11, fontWeight:600 }}>
+            <span>{filter.filterValue}</span>
+            <button onClick={() => setFilter?.(null)}
+              style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', padding:'0 0 0 4px', fontSize:14, lineHeight:1, marginTop:-1 }}>×</button>
+          </div>
         )}
         <div className="search-wrap" style={{ marginLeft:'auto' }}>
           <Search size={14}/>
@@ -2347,7 +2398,7 @@ function WorkerPage() {
 }
 
 /* ─── 대시보드용 입퇴사자 현황 카드 ─── */
-function ChartWithLegend({ title, canvasRef, items, total, height=120 }) {
+function ChartWithLegend({ title, canvasRef, items, total, height=120, onClickItem }) {
   const pct = n => total > 0 ? Math.round(n/total*100) : 0;
   return (
     <div style={{ flex:'1 1 200px' }}>
@@ -2359,8 +2410,15 @@ function ChartWithLegend({ title, canvasRef, items, total, height=120 }) {
             <div key={label} style={{ display:'flex', alignItems:'center', gap:5 }}>
               <div style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }}/>
               <span style={{ fontSize:11, color:'var(--color-text-muted)', whiteSpace:'nowrap', marginRight:4 }}>{label}</span>
-              <span style={{ fontSize:14, fontWeight:700, color }}>{value}</span>
-              <span style={{ fontSize:10, color:'var(--color-text-faint)', marginLeft:2 }}>({pct(value)}%)</span>
+              <span
+                style={{ fontSize:14, fontWeight:700, color, cursor: onClickItem ? 'pointer' : 'default', textDecoration: onClickItem ? 'underline dotted' : 'none' }}
+                title={onClickItem ? '클릭하면 근로자명부에서 필터링' : undefined}
+                onClick={() => onClickItem?.(label)}
+              >{value}</span>
+              <span
+                style={{ fontSize:10, color:'var(--color-text-faint)', marginLeft:2, cursor: onClickItem ? 'pointer' : 'default' }}
+                onClick={() => onClickItem?.(label)}
+              >({pct(value)}%)</span>
             </div>
           ))}
         </div>
@@ -2369,7 +2427,7 @@ function ChartWithLegend({ title, canvasRef, items, total, height=120 }) {
   );
 }
 
-function BonsaDemographicsChart() {
+function BonsaDemographicsChart({ onNavigate }) {
   const ageRef    = useRef(null);
   const gndRef    = useRef(null);
   const tenureRef = useRef(null);
@@ -2441,15 +2499,18 @@ function BonsaDemographicsChart() {
         {/* 성별 */}
         <ChartWithLegend title="성별" canvasRef={gndRef} height={120}
           items={[{label:'남',value:male,color:'#006494'},{label:'여',value:female,color:'#a12c7b'}]}
-          total={total}/>
+          total={total}
+          onClickItem={onNavigate ? (label) => onNavigate('worker', { filterType:'gender', filterValue:label }) : undefined}/>
         {/* 연령대 */}
         <ChartWithLegend title="연령대" canvasRef={ageRef} height={120}
           items={[{label:'20대',value:a20,color:CHART_COLORS[0]},{label:'30대',value:a30,color:CHART_COLORS[1]},{label:'40대',value:a40,color:CHART_COLORS[2]},{label:'50대↑',value:a50,color:CHART_COLORS[3]}]}
-          total={total}/>
+          total={total}
+          onClickItem={onNavigate ? (label) => onNavigate('worker', { filterType:'ageGroup', filterValue:label }) : undefined}/>
         {/* 근속기간 */}
         <ChartWithLegend title="근속기간" canvasRef={tenureRef} height={120}
           items={[{label:'3개월 미만',value:t0,color:CHART_COLORS[0]},{label:'3~6개월',value:t3,color:CHART_COLORS[1]},{label:'6~12개월',value:t6,color:CHART_COLORS[2]},{label:'12~24개월',value:t12,color:CHART_COLORS[3]},{label:'24~36개월',value:t24,color:CHART_COLORS[4]},{label:'36개월↑',value:t36,color:CHART_COLORS[5]||'#888'}]}
-          total={total}/>
+          total={total}
+          onClickItem={onNavigate ? (label) => onNavigate('worker', { filterType:'tenureGroup', filterValue:label }) : undefined}/>
       </div>
     </div>
   );
@@ -2461,7 +2522,7 @@ const COMPANY_GROUPS = [
   { label:'F&B', key:'fnb',    color:'var(--color-warning)',  companies:['그랑디르','교도리','PZPZ'] },
 ];
 
-function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false }) {
+function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false, onNavigate }) {
   const [loaded, setLoaded] = useState(_workerCache.__loaded);
   const [loading, setLoading] = useState(!_workerCache.__loaded);
 
@@ -2563,7 +2624,7 @@ function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false }) {
     return (
       <div className="card" style={{ marginBottom:20 }}>
         <div className="card-title" style={{ marginBottom:10 }}>구성원 현황</div>
-        <BonsaDemographicsChart/>
+        <BonsaDemographicsChart onNavigate={onNavigate}/>
       </div>
     );
   }
@@ -3765,6 +3826,7 @@ export default function ClientApp() {
   const [filterI, setFilterI] = useState({ search:'', manager:'', platform:'', attendance:'', passed:'' });
   const [filterO, setFilterO] = useState({ search:'', manager:'', status:'' });
   const [filterP, setFilterP] = useState({ search:'', manager:'', platform:'', result:'' });
+  const [filterW, setFilterW] = useState(null);
 
   // 현재 state의 최신값을 insertRow에서 참조하기 위한 ref
   const stateRef = useRef({ interviews: DEFAULT_INTERVIEWS, onboards: DEFAULT_ONBOARDS, proposals: DEFAULT_PROPOSALS, costs: [] });
@@ -3950,6 +4012,8 @@ export default function ClientApp() {
       setFilterP({ search:'', manager:'', platform:'', result:'', ...filters });
     } else if (targetPage === 'onboard') {
       setFilterO({ search:'', manager:'', status:'', ...filters });
+    } else if (targetPage === 'worker') {
+      setFilterW(filters && Object.keys(filters).length > 0 ? filters : null);
     }
     setPage(targetPage);
     setSidebarOpen(false);
@@ -4036,7 +4100,7 @@ export default function ClientApp() {
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
-          {page==='worker' && <WorkerPage/>}
+          {page==='worker' && <WorkerPage filter={filterW} setFilter={setFilterW}/>}
           {page==='meeting' && <MeetingLogPage/>}
           {page==='guide' && <GuidePage/>}
           {page==='attend-miss' && <AttendanceMissPage/>}
