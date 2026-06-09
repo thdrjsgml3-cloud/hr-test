@@ -1044,8 +1044,16 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
 /* ═══════════════════════════════════════════
    SETTINGS PAGE
 ═══════════════════════════════════════════ */
-const SettingsPage = React.memo(function SettingsPage({ settings, onUpdate }) {
+const SettingsPage = React.memo(function SettingsPage({ settings, onUpdate, onMigrate }) {
   const [inputs, setInputs] = useState({});
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState('');
+  const handleMigrate = async () => {
+    setMigrating(true); setMigrateResult('');
+    try { await onMigrate(); setMigrateResult('✅ 완료! 다른 사람도 새로고침하면 데이터가 보입니다.'); }
+    catch(e) { setMigrateResult('❌ 오류: ' + e.message); }
+    setMigrating(false);
+  };
   const setInput = (cat, val) => setInputs(p => ({...p, [cat]: val}));
   const addItem = (cat) => {
     const w = (inputs[cat]||'').trim();
@@ -1096,6 +1104,19 @@ const SettingsPage = React.memo(function SettingsPage({ settings, onUpdate }) {
       <Section cat="proposalPlatforms"  label="제안 플랫폼"    emoji="📤"/>
       <Section cat="costVendors"        label="채용 비용 업체" emoji="💳"/>
       <Section cat="costNotes"          label="채용 비용 비고 (사업장)" emoji="📝" placeholder="사업장명 입력 후 Enter..."/>
+
+      <div className="settings-section-label">데이터 서버 동기화</div>
+      <div className="card" style={{marginBottom:12}}>
+        <div className="card-title">☁️ 내 데이터 서버에 올리기</div>
+        <p style={{fontSize:'var(--text-sm)',color:'var(--color-text-muted)',marginBottom:12}}>
+          근태 누락, 기타 경고 건 등 이 브라우저에 저장된 데이터를 서버에 업로드합니다.<br/>
+          업로드 후 다른 사람들도 같은 데이터를 볼 수 있습니다.
+        </p>
+        <button className="btn btn-primary" onClick={handleMigrate} disabled={migrating}>
+          {migrating ? '업로드 중...' : '🚀 지금 서버에 업로드'}
+        </button>
+        {migrateResult && <div style={{marginTop:10,fontSize:'var(--text-sm)'}}>{migrateResult}</div>}
+      </div>
     </div>
   );
 });
@@ -4400,6 +4421,25 @@ export default function ClientApp() {
     apiSaveOtherWarn(rows).catch(console.error);
   }, []);
 
+  const migrateLocalStorage = useCallback(async () => {
+    const jobs = [];
+    const am = JSON.parse(localStorage.getItem('attendMiss') || '[]');
+    const ow = JSON.parse(localStorage.getItem('otherWarn') || '[]');
+    const jr = JSON.parse(localStorage.getItem('jdConfirmedReports') || '[]');
+    const js = {
+      periods: JSON.parse(localStorage.getItem('jdPeriods') || '{}'),
+      costGroups: JSON.parse(localStorage.getItem('jdCostGroups') || '[]'),
+      rowOrder: JSON.parse(localStorage.getItem('jdRowOrder') || 'null'),
+    };
+    if (am.length > 0) jobs.push(apiSaveAttendMiss(am).then(() => setAttendMissData(am)));
+    if (ow.length > 0) jobs.push(apiSaveOtherWarn(ow).then(() => setOtherWarnData(ow)));
+    if (jr.length > 0) jobs.push(apiSaveJdReports(jr).then(() => setJdReports(jr)));
+    if (Object.keys(js.periods).length > 0 || js.costGroups.length > 0 || js.rowOrder) {
+      jobs.push(apiSaveJdSettings(js).then(() => setJdSettings(js)));
+    }
+    await Promise.all(jobs);
+  }, []);
+
   const pageTitles = { dashboard:'대시보드', worker:'근로자명부', meeting:'면담일지', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
@@ -4505,7 +4545,7 @@ export default function ClientApp() {
           {page==='attend-miss' && <AttendanceMissPage initData={attendMissData} onSave={saveAttendMiss}/>}
 
           {page==='other-warn' && <OtherWarningPage initData={otherWarnData} onSave={saveOtherWarn}/>}
-          {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
+          {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings} onMigrate={migrateLocalStorage}/>}
         </div>
       </div>
 
