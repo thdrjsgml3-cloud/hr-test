@@ -3935,7 +3935,9 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                             <td key={k}>
                               {g.free
                                 ? <span style={{color:'var(--color-success)',fontSize:11,fontWeight:700}}>무료</span>
-                                : <InlineText value={(g.costs||{})[k]||''} onSave={v=>updateGroupCost(g.id,k,v)} placeholder="-"/>}
+                                : PLAT_VARIABLE.includes(k)
+                                  ? <span style={{fontSize:11,color:'var(--color-text-faint)',fontStyle:'italic'}}>연봉 7%</span>
+                                  : <InlineText value={(g.costs||{})[k]||''} onSave={v=>updateGroupCost(g.id,k,v)} placeholder="-"/>}
                             </td>
                           ))}
                           <td style={{textAlign:'center'}}>
@@ -3974,7 +3976,9 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                             <td key={k}>
                               {plan.free
                                 ? <span style={{color:'var(--color-success)',fontSize:11,fontWeight:700}}>무료</span>
-                                : <InlineText value={plan[k]||''} onSave={v=>updateLocalPlan(r.id,k,v)} placeholder="-"/>}
+                                : PLAT_VARIABLE.includes(k)
+                                  ? <span style={{fontSize:11,color:'var(--color-text-faint)',fontStyle:'italic'}}>연봉 7%</span>
+                                  : <InlineText value={plan[k]||''} onSave={v=>updateLocalPlan(r.id,k,v)} placeholder="-"/>}
                             </td>
                           ))}
                           <td style={{textAlign:'center'}}>
