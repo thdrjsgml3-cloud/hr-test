@@ -7,7 +7,7 @@ async function apiFetch(url, options) {
 }
 
 export async function loadData() {
-  const [interviews, onboards, proposals, costs, jds, jdSettingsRaw, jdReports] = await Promise.all([
+  const [interviews, onboards, proposals, costs, jds, jdSettingsRaw, jdReports, attendMiss, otherWarn] = await Promise.all([
     apiFetch(`${API}/interviews`),
     apiFetch(`${API}/onboards`),
     apiFetch(`${API}/proposals`),
@@ -15,9 +15,11 @@ export async function loadData() {
     apiFetch(`${API}/jds`),
     apiFetch(`${API}/jd_settings`).catch(() => null),
     apiFetch(`${API}/jd_reports`).catch(() => []),
+    apiFetch(`${API}/attend_miss`).catch(() => []),
+    apiFetch(`${API}/other_warn`).catch(() => []),
   ]);
   const jdSettings = (!jdSettingsRaw || Array.isArray(jdSettingsRaw) && jdSettingsRaw.length === 0) ? null : jdSettingsRaw;
-  return { interviews, onboards, proposals, costs, jds, jdSettings, jdReports: Array.isArray(jdReports) ? jdReports : [] };
+  return { interviews, onboards, proposals, costs, jds, jdSettings, jdReports: Array.isArray(jdReports) ? jdReports : [], attendMiss: Array.isArray(attendMiss) ? attendMiss : [], otherWarn: Array.isArray(otherWarn) ? otherWarn : [] };
 }
 
 export function apiSaveJdSettings(settings) {
@@ -33,6 +35,22 @@ export function apiSaveJdReports(reports) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reports),
+  });
+}
+
+export function apiSaveAttendMiss(rows) {
+  return apiFetch(`${API}/attend_miss`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rows),
+  });
+}
+
+export function apiSaveOtherWarn(rows) {
+  return apiFetch(`${API}/other_warn`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rows),
   });
 }
 

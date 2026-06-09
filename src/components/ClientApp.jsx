@@ -5,7 +5,7 @@ import { Chart, registerables } from 'chart.js';
 import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList, Users, BookText } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
-import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs, apiSaveJdSettings, apiSaveJdReports } from '@/lib/sheets';
+import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs, apiSaveJdSettings, apiSaveJdReports, apiSaveAttendMiss, apiSaveOtherWarn } from '@/lib/sheets';
 
 Chart.register(...registerables);
 
@@ -3054,12 +3054,20 @@ const WARN_TEMPLATE = (name, ym, dates, count) => {
 /* ═══════════════════════════════════════════
    ATTENDANCE MISS PAGE (근태 누락)
 ═══════════════════════════════════════════ */
-function AttendanceMissPage() {
+function AttendanceMissPage({ initData, onSave }) {
   const [records, setRecords] = useState(() => {
+    if (initData && initData.length > 0) return initData.map(r => ({ ...r, count: countDates(r.dates) }));
     const s = localStorage.getItem('attendMiss');
     const data = (s && s !== '[]') ? JSON.parse(s) : INITIAL_ATTEND_MISS;
     return data.map(r => ({ ...r, count: countDates(r.dates) }));
   });
+  const [_serverLoaded, _setServerLoaded] = useState(false);
+  useEffect(() => {
+    if (initData && initData.length > 0 && !_serverLoaded) {
+      setRecords(initData.map(r => ({ ...r, count: countDates(r.dates) })));
+      _setServerLoaded(true);
+    }
+  }, [initData]);
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('attendMissColW')) || { dept:90, name:100, dates:350 }; } catch { return { dept:90, name:100, dates:350 }; } });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [warnModal, setWarnModal] = useState(null);
@@ -3076,7 +3084,7 @@ function AttendanceMissPage() {
     return () => document.removeEventListener('click', h);
   }, [ctxMenu]);
 
-  const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); };
+  const save = (next) => { setRecords(next); localStorage.setItem('attendMiss', JSON.stringify(next)); onSave?.(next); };
 
   const startColResize = (e, col) => {
     e.preventDefault();
@@ -3414,8 +3422,15 @@ function AttendanceWarningPage() {
 /* ═══════════════════════════════════════════
    OTHER WARNING PAGE (기타 경고 건)
 ═══════════════════════════════════════════ */
-function OtherWarningPage() {
-  const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('otherWarn') || '[]'));
+function OtherWarningPage({ initData, onSave }) {
+  const [records, setRecords] = useState(() => {
+    if (initData && initData.length > 0) return initData;
+    return JSON.parse(localStorage.getItem('otherWarn') || '[]');
+  });
+  const [_serverLoaded, _setServerLoaded] = useState(false);
+  useEffect(() => {
+    if (initData && initData.length > 0 && !_serverLoaded) { setRecords(initData); _setServerLoaded(true); }
+  }, [initData]);
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('otherWarnColW')) || { ym:95, dept:90, name:110, content:260, warningBy:100 }; } catch { return { ym:95, dept:90, name:110, content:260, warningBy:100 }; } });
   const [msgPopup, setMsgPopup] = useState(null); // { x, y, id }
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -3428,7 +3443,7 @@ function OtherWarningPage() {
     return () => document.removeEventListener('click', h);
   }, [ctxMenu]);
 
-  const save = (next) => { setRecords(next); localStorage.setItem('otherWarn', JSON.stringify(next)); };
+  const save = (next) => { setRecords(next); localStorage.setItem('otherWarn', JSON.stringify(next)); onSave?.(next); };
 
   const startColResize = (e, col) => {
     e.preventDefault();
@@ -4137,6 +4152,8 @@ export default function ClientApp() {
   const [costs, setCosts] = useState([]);
   const [jdSettings, setJdSettings] = useState(null);
   const [jdReports, setJdReports] = useState([]);
+  const [attendMissData, setAttendMissData] = useState([]);
+  const [otherWarnData, setOtherWarnData] = useState([]);
   const [jds, setJDs] = useState(() => {
     try {
       const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
@@ -4187,7 +4204,7 @@ export default function ClientApp() {
     let cancelled = false;
     const tryLoad = async (attempt = 0) => {
       try {
-        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j, jdSettings: js, jdReports: jr } = await loadData();
+        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j, jdSettings: js, jdReports: jr, attendMiss: am, otherWarn: ow } = await loadData();
         if (cancelled) return;
         startTransition(() => {
           setInterviews(i);
@@ -4197,6 +4214,8 @@ export default function ClientApp() {
           if (j && j.length > 0) setJDs(j);
           if (js) setJdSettings(js);
           if (jr && jr.length > 0) setJdReports(jr);
+          if (am && am.length > 0) setAttendMissData(am);
+          if (ow && ow.length > 0) setOtherWarnData(ow);
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
@@ -4355,6 +4374,16 @@ export default function ClientApp() {
     apiSaveJdReports(reports).catch(console.error);
   }, []);
 
+  const saveAttendMiss = useCallback((rows) => {
+    setAttendMissData(rows);
+    apiSaveAttendMiss(rows).catch(console.error);
+  }, []);
+
+  const saveOtherWarn = useCallback((rows) => {
+    setOtherWarnData(rows);
+    apiSaveOtherWarn(rows).catch(console.error);
+  }, []);
+
   const pageTitles = { dashboard:'대시보드', worker:'근로자명부', meeting:'면담일지', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
 
   const nav = (p) => { setPage(p); setSidebarOpen(false); };
@@ -4457,9 +4486,9 @@ export default function ClientApp() {
           {page==='worker' && <WorkerPage filter={filterW} setFilter={setFilterW}/>}
           {page==='meeting' && <MeetingLogPage/>}
           {page==='guide' && <GuidePage/>}
-          {page==='attend-miss' && <AttendanceMissPage/>}
+          {page==='attend-miss' && <AttendanceMissPage initData={attendMissData} onSave={saveAttendMiss}/>}
 
-          {page==='other-warn' && <OtherWarningPage/>}
+          {page==='other-warn' && <OtherWarningPage initData={otherWarnData} onSave={saveOtherWarn}/>}
           {page==='settings' && <SettingsPage settings={appSettings} onUpdate={updateAppSettings}/>}
         </div>
       </div>
