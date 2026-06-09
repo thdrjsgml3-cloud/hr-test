@@ -4214,8 +4214,24 @@ export default function ClientApp() {
           if (j && j.length > 0) setJDs(j);
           if (js) setJdSettings(js);
           if (jr && jr.length > 0) setJdReports(jr);
-          if (am && am.length > 0) setAttendMissData(am);
-          if (ow && ow.length > 0) setOtherWarnData(ow);
+          // 근태 누락 — 서버 비어있으면 localStorage에서 자동 마이그레이션
+          if (am && am.length > 0) {
+            setAttendMissData(am);
+          } else {
+            try {
+              const local = JSON.parse(localStorage.getItem('attendMiss') || '[]');
+              if (local.length > 0) { setAttendMissData(local); apiSaveAttendMiss(local).catch(console.error); }
+            } catch {}
+          }
+          // 기타 경고 건 — 서버 비어있으면 localStorage에서 자동 마이그레이션
+          if (ow && ow.length > 0) {
+            setOtherWarnData(ow);
+          } else {
+            try {
+              const local = JSON.parse(localStorage.getItem('otherWarn') || '[]');
+              if (local.length > 0) { setOtherWarnData(local); apiSaveOtherWarn(local).catch(console.error); }
+            } catch {}
+          }
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
