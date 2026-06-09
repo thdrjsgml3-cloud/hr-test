@@ -3589,6 +3589,10 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
   const [newForm, setNewForm]         = useState(blankForm);
 
+  // 확정 비용 관리 탭 상태
+  const [confirmedReports, setConfirmedReports] = useState(() => { try { return JSON.parse(localStorage.getItem('jdConfirmedReports'))||[]; } catch { return []; } });
+  const [viewingReport, setViewingReport] = useState(null);
+
   // 보고서 관리 탭 상태
   const [periods, setPeriods]       = useState(() => { try { return JSON.parse(localStorage.getItem('jdPeriods'))||{}; } catch { return {}; } });
   const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:'',...(r.costPlan||{})}; }); return p; });
@@ -3645,6 +3649,30 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
     return t;
   }, [effectiveRowList, costGroups, localPlan]);
   const grandTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(rowTotals[k]||0),0);
+
+  const saveConfirmedReport = (title) => {
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const snap = {
+      id: Date.now(),
+      title: title || `${now.getFullYear()}년 ${now.getMonth()+1}월 채용 예상 비용`,
+      date: dateStr,
+      activeJDs: activeJDs,
+      periods: { ...periods },
+      plan: JSON.parse(JSON.stringify(localPlan)),
+      costGroups: JSON.parse(JSON.stringify(costGroups)),
+      rowOrder: rowOrder ? JSON.parse(JSON.stringify(rowOrder)) : null,
+      grandTotal,
+    };
+    const next = [snap, ...confirmedReports];
+    setConfirmedReports(next);
+    localStorage.setItem('jdConfirmedReports', JSON.stringify(next));
+  };
+  const deleteConfirmedReport = (id) => {
+    const next = confirmedReports.filter(r => r.id !== id);
+    setConfirmedReports(next);
+    localStorage.setItem('jdConfirmedReports', JSON.stringify(next));
+  };
 
   const moveRow = (idx, dir) => {
     const list = [...effectiveRowList];
@@ -3788,22 +3816,28 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
       <div className="page-header">
         <div><div className="page-title">채용 J/D 관리</div><div className="page-desc">포지션별 JD 및 채용 진행 현황 관리</div></div>
         <div style={{display:'flex',gap:8}}>
-          {companyTab !== '보고서 관리' ? <>
+          {companyTab !== '보고서 관리' && companyTab !== '확정 비용 관리' ? <>
             <button className="btn btn-primary" onClick={()=>{ setAddingNew(true); setExpandedId(null); setEditingId(null); }}><Plus size={14}/> 포지션 추가</button>
-          </> : <>
+          </> : companyTab === '보고서 관리' ? <>
             {planDirty && <button className="btn btn-secondary" onClick={saveCostPlan}>💾 저장</button>}
+            <button className="btn btn-secondary" onClick={()=>{
+              const title = prompt('보고서 제목을 입력하세요', `${new Date().getFullYear()}년 ${new Date().getMonth()+1}월 채용 예상 비용`);
+              if (title === null) return;
+              saveConfirmedReport(title || undefined);
+              setCompanyTab('확정 비용 관리');
+            }}>✅ 확정 저장</button>
             <button className="btn btn-primary" onClick={()=>setShowCostReport(true)}>📊 보고서</button>
-          </>}
+          </> : null}
         </div>
       </div>
 
       <div className="tabs">
-        {['전체',...JD_COMPANIES,'보고서 관리'].map(c=>(
+        {['전체',...JD_COMPANIES,'보고서 관리','확정 비용 관리'].map(c=>(
           <button key={c} className={`tab-btn ${companyTab===c?'active':''}`} onClick={()=>setCompanyTab(c)}>{c}</button>
         ))}
       </div>
 
-      {companyTab !== '보고서 관리' ? <>
+      {companyTab !== '보고서 관리' && companyTab !== '확정 비용 관리' ? <>
         <div className="table-toolbar">
           <span className="filter-label">상태</span>
           <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
@@ -4040,7 +4074,32 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         </div>
       </>}
 
+      {companyTab === '확정 비용 관리' && (
+        <div>
+          {confirmedReports.length === 0 ? (
+            <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'48px 0'}}>
+              <div style={{fontSize:'var(--text-sm)',marginBottom:8}}>저장된 확정 보고서가 없습니다.</div>
+              <div style={{fontSize:'var(--text-xs)'}}>보고서 관리 탭에서 "✅ 확정 저장" 버튼으로 저장하세요.</div>
+            </div>
+          ) : confirmedReports.map(r => (
+            <div key={r.id} className="card" style={{marginBottom:10,padding:'14px 18px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:'var(--text-sm)'}}>{r.title}</div>
+                  <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginTop:3}}>
+                    저장일: {r.date} · 포지션 {r.activeJDs?.length||0}개 · 총 예상 비용 <strong style={{color:'var(--color-primary)'}}>{fmtAmount(r.grandTotal)} + α</strong>
+                  </div>
+                </div>
+                <button className="btn btn-secondary" style={{fontSize:12,padding:'4px 12px'}} onClick={()=>setViewingReport(r)}>📊 보기</button>
+                <button className="btn btn-ghost btn-sm" style={{fontSize:11,color:'var(--color-error)'}} onClick={()=>{ if(confirm('삭제하시겠습니까?')) deleteConfirmedReport(r.id); }}>삭제</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} costGroups={costGroups} rowOrder={rowOrder} onClose={()=>setShowCostReport(false)}/>}
+      {viewingReport && <CostPlanReport activeJDs={viewingReport.activeJDs||[]} periods={viewingReport.periods||{}} plan={viewingReport.plan||{}} costGroups={viewingReport.costGroups||[]} rowOrder={viewingReport.rowOrder} onClose={()=>setViewingReport(null)}/>}
     </div>
   );
 });
