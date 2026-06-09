@@ -4027,7 +4027,14 @@ export default function ClientApp() {
   const [onboards, setOnboards] = useState(DEFAULT_ONBOARDS);
   const [proposals, setProposals] = useState(DEFAULT_PROPOSALS);
   const [costs, setCosts] = useState([]);
-  const [jds, setJDs] = useState(DEFAULT_JDS);
+  const [jds, setJDs] = useState(() => {
+    try {
+      const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
+      if (Object.keys(overrides).length > 0)
+        return DEFAULT_JDS.map(jd => ({ ...jd, status: overrides[jd.id] || jd.status }));
+    } catch {}
+    return DEFAULT_JDS;
+  });
   const [page, setPage] = useState('dashboard');
   const [appSettings, setAppSettings] = useState(() => {
     try {
