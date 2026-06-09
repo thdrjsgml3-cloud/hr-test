@@ -3837,7 +3837,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         ))}
       </div>
 
-      {companyTab !== '보고서 관리' && companyTab !== '확정 비용 관리' ? <>
+      {companyTab !== '보고서 관리' && companyTab !== '확정 비용 관리' && <>
         <div className="table-toolbar">
           <span className="filter-label">상태</span>
           <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
@@ -3900,7 +3900,9 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
             </div>
           ))
         }
-      </> : <>
+      </>}
+
+      {companyTab === '보고서 관리' && <>
         {/* ── 보고서 관리 탭 ── */}
         <div className="card" style={{marginBottom:12,padding:'12px 16px'}}>
           <div style={{fontWeight:600,fontSize:'var(--text-sm)',marginBottom:8}}>
@@ -4074,14 +4076,14 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         </div>
       </>}
 
-      {companyTab === '확정 비용 관리' && (
-        <div>
-          {confirmedReports.length === 0 ? (
-            <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'48px 0'}}>
+      {companyTab === '확정 비용 관리' && <>
+        {/* ── 확정 비용 관리 탭 ── */}
+        {confirmedReports.length === 0
+          ? <div className="card" style={{textAlign:'center',color:'var(--color-text-faint)',padding:'48px 0'}}>
               <div style={{fontSize:'var(--text-sm)',marginBottom:8}}>저장된 확정 보고서가 없습니다.</div>
               <div style={{fontSize:'var(--text-xs)'}}>보고서 관리 탭에서 "✅ 확정 저장" 버튼으로 저장하세요.</div>
             </div>
-          ) : confirmedReports.map(r => (
+          : confirmedReports.map(r => (
             <div key={r.id} className="card" style={{marginBottom:10,padding:'14px 18px'}}>
               <div style={{display:'flex',alignItems:'center',gap:12}}>
                 <div style={{flex:1}}>
@@ -4094,9 +4096,9 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                 <button className="btn btn-ghost btn-sm" style={{fontSize:11,color:'var(--color-error)'}} onClick={()=>{ if(confirm('삭제하시겠습니까?')) deleteConfirmedReport(r.id); }}>삭제</button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        }
+      </>}
 
       {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} costGroups={costGroups} rowOrder={rowOrder} onClose={()=>setShowCostReport(false)}/>}
       {viewingReport && <CostPlanReport activeJDs={viewingReport.activeJDs||[]} periods={viewingReport.periods||{}} plan={viewingReport.plan||{}} costGroups={viewingReport.costGroups||[]} rowOrder={viewingReport.rowOrder} onClose={()=>setViewingReport(null)}/>}
