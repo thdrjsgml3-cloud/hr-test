@@ -3929,7 +3929,10 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                             <div style={{fontWeight:600,fontSize:'var(--text-sm)'}}>
                               <InlineText value={g.label||posNames.join(' · ')} onSave={v=>updateGroupLabel(g.id,v)} placeholder={posNames.join(' · ')}/>
                             </div>
-                            <div style={{fontSize:10,color:'var(--color-text-faint)',marginTop:2}}>{posNames.join(', ')} ({posNames.length}개)</div>
+                            {g.label
+                              ? <div style={{fontSize:10,color:'var(--color-text-faint)',marginTop:2}}>{posNames.join(', ')} ({posNames.length}개)</div>
+                              : <div style={{fontSize:10,color:'var(--color-text-faint)',marginTop:2}}>{posNames.length}개 포지션</div>
+                            }
                           </td>
                           {PLAT_KEYS.map(k=>(
                             <td key={k}>
