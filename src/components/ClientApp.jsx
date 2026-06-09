@@ -1453,7 +1453,10 @@ function CostPlanReport({ activeJDs, periods, plan, costGroups=[], rowOrder=null
                       <tr key={item.id} style={{background:'#f5f5f0'}}>
                         <td style={{...tdS(i),fontWeight:600}}>
                           {g.label||posNames.join(' · ')}
-                          <div style={{fontSize:10,color:'#888',fontWeight:400,marginTop:1}}>{posNames.join(', ')}</div>
+                          {g.label
+                            ? <div style={{fontSize:10,color:'#888',fontWeight:400,marginTop:1}}>{posNames.join(', ')}</div>
+                            : <div style={{fontSize:10,color:'#888',fontWeight:400,marginTop:1}}>{posNames.length}개 포지션</div>
+                          }
                         </td>
                         {PLAT_KEYS.map(k=><td key={k} style={{...tdS(i),textAlign:'right'}}>{g.free?'무료':(g.costs||{})[k]||'-'}</td>)}
                         <td style={tdS(i)}>{(g.costs||{}).note||'-'}</td>
