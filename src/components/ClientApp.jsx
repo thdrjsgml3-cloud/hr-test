@@ -3589,6 +3589,13 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
   const [newForm, setNewForm]         = useState(blankForm);
 
+  // 채용담당자
+  const JD_ASSIGNEES = ['정제원', '송건희', '김대현', '전고은'];
+  const [jdAssignees, setJdAssignees] = useState(() => { try { return JSON.parse(localStorage.getItem('jdAssignees'))||{}; } catch { return {}; } });
+  const setAssignee = (id, val) => {
+    setJdAssignees(prev => { const next = {...prev, [id]: val}; localStorage.setItem('jdAssignees', JSON.stringify(next)); return next; });
+  };
+
   // 확정 비용 관리 탭 상태
   const [confirmedReports, setConfirmedReports] = useState(() => { try { return JSON.parse(localStorage.getItem('jdConfirmedReports'))||[]; } catch { return []; } });
   const [viewingReport, setViewingReport] = useState(null);
@@ -3874,6 +3881,15 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                       <strong style={{textDecoration: r.status==='마감'?'line-through':'none'}}>{r.position}</strong>
                     </span>
                     <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
+                    <select
+                      value={jdAssignees[r.id]||''}
+                      onClick={e=>e.stopPropagation()}
+                      onChange={e=>{e.stopPropagation();setAssignee(r.id,e.target.value);}}
+                      style={{fontSize:11,padding:'2px 6px',border:'1px solid var(--color-divider)',borderRadius:4,background:'var(--color-surface)',color: jdAssignees[r.id] ? 'var(--color-text)' : 'var(--color-text-faint)',cursor:'pointer',minWidth:68}}
+                    >
+                      <option value="">담당자</option>
+                      {JD_ASSIGNEES.map(a=><option key={a} value={a}>{a}</option>)}
+                    </select>
                     <span className={`badge ${r.status==='진행중'?'badge-green':'badge-gray'}`}>{r.status}</span>
                     <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();toggleStatus(r);}}>{r.status==='진행중'?'마감':'재개'}</button>
                     <button className="btn btn-secondary" style={{fontSize:11,padding:'2px 8px'}} onClick={e=>{e.stopPropagation();startEdit(r);}}>편집</button>
