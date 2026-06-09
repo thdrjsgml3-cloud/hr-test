@@ -3557,12 +3557,31 @@ function OtherWarningPage() {
 /* ═══════════════════════════════════════════
    J/D PAGE
 ═══════════════════════════════════════════ */
+const JD_RPT_COL_DEFAULT = { group:200, saramin:110, jobkorea:110, albamon:110, wanted:110, remember:110, note:130 };
+
 const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const [companyTab, setCompanyTab]   = useState('전체');
   const [statusFilter, setStatusFilter] = useState('전체');
   const [expandedId, setExpandedId]   = useState(null);
   const [editingId, setEditingId]     = useState(null);
   const [editForm, setEditForm]       = useState({});
+  const [rptColW, setRptColW] = useState(() => { try { return JSON.parse(localStorage.getItem('jdRptColW')) || JD_RPT_COL_DEFAULT; } catch { return JD_RPT_COL_DEFAULT; } });
+
+  const startRptColResize = (e, col) => {
+    e.preventDefault();
+    let lastX = e.clientX;
+    const onMove = (ev) => {
+      const delta = ev.clientX - lastX; lastX = ev.clientX;
+      setRptColW(prev => ({ ...prev, [col]: Math.max(60, (prev[col] ?? 60) + delta) }));
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setRptColW(prev => { localStorage.setItem('jdRptColW', JSON.stringify(prev)); return prev; });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
   const [addingNew, setAddingNew]     = useState(false);
   const blankForm = { company:'본사', division:'', team:'', position:'', experienceLevel:'', status:'진행중', duties:'', requirements:'', preferred:'' };
   const [newForm, setNewForm]         = useState(blankForm);
@@ -3888,23 +3907,27 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
           </div>
 
           <div className="table-wrap">
-            <table className="data-table">
+            <table className="data-table" style={{tableLayout:'fixed',width:'100%'}}>
               <colgroup>
                 <col style={{width:32}}/>{/* checkbox */}
                 <col style={{width:38}}/>{/* move */}
-                <col style={{width:180}}/>{/* 채용모집군 */}
-                {PLAT_KEYS.map(k=><col key={k} style={{width:108}}/>)}
+                <col style={{width:rptColW.group}}/>{/* 채용모집군 */}
+                {PLAT_KEYS.map(k=><col key={k} style={{width:rptColW[k]??108}}/>)}
                 <col style={{width:54}}/>{/* 무료 */}
-                <col style={{width:130}}/>{/* 비고 */}
+                <col style={{width:rptColW.note}}/>{/* 비고 */}
                 <col style={{width:54}}/>{/* action */}
               </colgroup>
               <thead>
                 <tr>
                   <th></th><th></th>
-                  <th>채용모집군</th>
-                  {PLAT_KEYS.map(k=><th key={k}>{PLAT_LABELS[k]}{periods[k]?` (${periods[k]})`:''}</th>)}
+                  <th style={{position:'relative',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>채용모집군<div style={{position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none'}} onMouseDown={e=>startRptColResize(e,'group')}/></th>
+                  {PLAT_KEYS.map(k=>(
+                    <th key={k} style={{position:'relative',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>
+                      {PLAT_LABELS[k]}{periods[k]?` (${periods[k]})`:''}<div style={{position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none'}} onMouseDown={e=>startRptColResize(e,k)}/>
+                    </th>
+                  ))}
                   <th style={{textAlign:'center'}}>무료</th>
-                  <th>비고</th>
+                  <th style={{position:'relative',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>비고<div style={{position:'absolute',right:0,top:0,bottom:0,width:5,cursor:'col-resize',userSelect:'none'}} onMouseDown={e=>startRptColResize(e,'note')}/></th>
                   <th></th>
                 </tr>
               </thead>
