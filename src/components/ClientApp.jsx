@@ -5,7 +5,7 @@ import { Chart, registerables } from 'chart.js';
 import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList, Users, BookText } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
-import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs } from '@/lib/sheets';
+import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs, apiSaveJdSettings, apiSaveJdReports } from '@/lib/sheets';
 
 Chart.register(...registerables);
 
@@ -3595,7 +3595,7 @@ function EditForm({ form, setForm, onSave, onCancel, onDel, isNew }) {
   );
 }
 
-const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
+const JDPage = React.memo(function JDPage({ data, onSaveAll, costs, jdSettings, jdReports, onSaveJdSettings, onSaveJdReports }) {
   const [companyTab, setCompanyTab]   = useState('전체');
   const [statusFilter, setStatusFilter] = useState('전체');
   const [expandedId, setExpandedId]   = useState(null);
@@ -3624,23 +3624,24 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
 
   // 채용담당자
   const JD_ASSIGNEES = ['정제원', '송건희', '김대현', '전고은'];
-  const [jdAssignees, setJdAssignees] = useState(() => { try { return JSON.parse(localStorage.getItem('jdAssignees'))||{}; } catch { return {}; } });
   const setAssignee = (id, val) => {
-    setJdAssignees(prev => { const next = {...prev, [id]: val}; localStorage.setItem('jdAssignees', JSON.stringify(next)); return next; });
+    onSaveAll(data.map(x => x.id === id ? {...x, assignee: val} : x));
   };
 
   // 확정 비용 관리 탭 상태
   const [confirmedReports, setConfirmedReports] = useState(() => { try { return JSON.parse(localStorage.getItem('jdConfirmedReports'))||[]; } catch { return []; } });
   const [viewingReport, setViewingReport] = useState(null);
+  useEffect(() => { if (jdReports && jdReports.length >= 0) setConfirmedReports(jdReports); }, [jdReports]);
 
   // 보고서 관리 탭 상태
-  const [periods, setPeriods]       = useState(() => { try { return JSON.parse(localStorage.getItem('jdPeriods'))||{}; } catch { return {}; } });
+  const [periods, setPeriods]       = useState(() => { if (jdSettings?.periods) return jdSettings.periods; try { return JSON.parse(localStorage.getItem('jdPeriods'))||{}; } catch { return {}; } });
   const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:'',...(r.costPlan||{})}; }); return p; });
   const [showCostReport, setShowCostReport] = useState(false);
   const [planDirty, setPlanDirty]   = useState(false);
   // 그룹화 상태
-  const [costGroups, setCostGroups] = useState(() => { try { return JSON.parse(localStorage.getItem('jdCostGroups'))||[]; } catch { return []; } });
-  const [rowOrder,   setRowOrder]   = useState(() => { try { return JSON.parse(localStorage.getItem('jdRowOrder'))||null; } catch { return null; } });
+  const [costGroups, setCostGroups] = useState(() => { if (jdSettings?.costGroups) return jdSettings.costGroups; try { return JSON.parse(localStorage.getItem('jdCostGroups'))||[]; } catch { return []; } });
+  const [rowOrder,   setRowOrder]   = useState(() => { if (jdSettings?.rowOrder !== undefined) return jdSettings.rowOrder; try { return JSON.parse(localStorage.getItem('jdRowOrder'))||null; } catch { return null; } });
+  useEffect(() => { if (jdSettings) { if (jdSettings.costGroups) setCostGroups(jdSettings.costGroups); if (jdSettings.rowOrder !== undefined) setRowOrder(jdSettings.rowOrder); if (jdSettings.periods) setPeriods(jdSettings.periods); } }, [jdSettings]);
   const [selRows,    setSelRows]    = useState(new Set());
 
   useEffect(() => {
@@ -3707,11 +3708,13 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
     const next = [snap, ...confirmedReports];
     setConfirmedReports(next);
     localStorage.setItem('jdConfirmedReports', JSON.stringify(next));
+    onSaveJdReports(next);
   };
   const deleteConfirmedReport = (id) => {
     const next = confirmedReports.filter(r => r.id !== id);
     setConfirmedReports(next);
     localStorage.setItem('jdConfirmedReports', JSON.stringify(next));
+    onSaveJdReports(next);
   };
 
   const moveRow = (idx, dir) => {
@@ -3792,6 +3795,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
     localStorage.setItem('jdPeriods', JSON.stringify(periods));
     localStorage.setItem('jdCostGroups', JSON.stringify(costGroups));
     localStorage.setItem('jdRowOrder',   JSON.stringify(rowOrder));
+    onSaveJdSettings({ periods, costGroups, rowOrder });
     setPlanDirty(false);
   };
 
@@ -3883,10 +3887,10 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                     </span>
                     <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>{r.experienceLevel}</span>
                     <select
-                      value={jdAssignees[r.id]||''}
+                      value={r.assignee||''}
                       onClick={e=>e.stopPropagation()}
                       onChange={e=>{e.stopPropagation();setAssignee(r.id,e.target.value);}}
-                      style={{fontSize:11,padding:'2px 6px',border:'1px solid var(--color-divider)',borderRadius:4,background:'var(--color-surface)',color: jdAssignees[r.id] ? 'var(--color-text)' : 'var(--color-text-faint)',cursor:'pointer',minWidth:68}}
+                      style={{fontSize:11,padding:'2px 6px',border:'1px solid var(--color-divider)',borderRadius:4,background:'var(--color-surface)',color: r.assignee ? 'var(--color-text)' : 'var(--color-text-faint)',cursor:'pointer',minWidth:68}}
                     >
                       <option value="">담당자</option>
                       {JD_ASSIGNEES.map(a=><option key={a} value={a}>{a}</option>)}
@@ -3932,7 +3936,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
                 <input className="search-input" style={{width:88}} placeholder="예: 3일"
                   value={periods[k]||''}
                   onChange={e=>setPeriods(p=>({...p,[k]:e.target.value}))}
-                  onBlur={()=>{ localStorage.setItem('jdPeriods', JSON.stringify(periods)); }}
+                  onBlur={()=>{ setPlanDirty(true); }}
                 />
               </div>
             ))}
@@ -4131,6 +4135,8 @@ export default function ClientApp() {
   const [onboards, setOnboards] = useState(DEFAULT_ONBOARDS);
   const [proposals, setProposals] = useState(DEFAULT_PROPOSALS);
   const [costs, setCosts] = useState([]);
+  const [jdSettings, setJdSettings] = useState(null);
+  const [jdReports, setJdReports] = useState([]);
   const [jds, setJDs] = useState(() => {
     try {
       const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
@@ -4181,18 +4187,16 @@ export default function ClientApp() {
     let cancelled = false;
     const tryLoad = async (attempt = 0) => {
       try {
-        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j } = await loadData();
+        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j, jdSettings: js, jdReports: jr } = await loadData();
         if (cancelled) return;
         startTransition(() => {
           setInterviews(i);
           setOnboards(o);
           setProposals(p);
           if (c) setCosts(c);
-          if (j && j.length > 0) {
-            // localStorage에 저장된 상태 오버라이드 적용 (서버 재시도 타이머로 인한 덮어쓰기 방지)
-            const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
-            setJDs(j.map(jd => ({ ...jd, status: overrides[jd.id] || jd.status })));
-          }
+          if (j && j.length > 0) setJDs(j);
+          if (js) setJdSettings(js);
+          if (jr && jr.length > 0) setJdReports(jr);
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
@@ -4338,11 +4342,17 @@ export default function ClientApp() {
 
   const saveAllJDs = useCallback((rows) => {
     setJDs(rows);
-    // 상태를 localStorage에도 저장 (서버 재시도 덮어쓰기 방지)
-    const overrides = {};
-    rows.forEach(r => { overrides[r.id] = r.status; });
-    localStorage.setItem('jd_status_overrides', JSON.stringify(overrides));
     apiSaveAllJDs(rows).catch(console.error);
+  }, []);
+
+  const saveJdSettings = useCallback((settings) => {
+    setJdSettings(settings);
+    apiSaveJdSettings(settings).catch(console.error);
+  }, []);
+
+  const saveJdReports = useCallback((reports) => {
+    setJdReports(reports);
+    apiSaveJdReports(reports).catch(console.error);
   }, []);
 
   const pageTitles = { dashboard:'대시보드', worker:'근로자명부', meeting:'면담일지', interview:'면접 일정', onboard:'교육 및 입사자', proposal:'포지션 제안 O/B', cost:'채용 비용', jd:'채용 J/D 관리', guide:'채용 안내 내용 양식', 'attend-miss':'근태 누락', 'other-warn':'기타 경고 건', settings:'설정' };
@@ -4443,7 +4453,7 @@ export default function ClientApp() {
           {page==='onboard' && <OnboardPage data={onboards} filter={filterO} setFilter={setFilterO} onUpdate={updateOnboard} onAdd={addOnboardRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='proposal' && <ProposalPage data={proposals} filter={filterP} setFilter={setFilterP} onUpdate={updateProposal} onAdd={addProposalRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
-          {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs}/>}
+          {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs} jdSettings={jdSettings} jdReports={jdReports} onSaveJdSettings={saveJdSettings} onSaveJdReports={saveJdReports}/>}
           {page==='worker' && <WorkerPage filter={filterW} setFilter={setFilterW}/>}
           {page==='meeting' && <MeetingLogPage/>}
           {page==='guide' && <GuidePage/>}

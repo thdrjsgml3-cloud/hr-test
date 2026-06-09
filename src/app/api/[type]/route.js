@@ -11,6 +11,20 @@ export async function GET(req, { params }) {
   }
 }
 
+export async function PUT(req, { params }) {
+  const { type } = params;
+  if (!VALID_TYPES.includes(type)) return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+  try {
+    const body = await req.json();
+    const supabase = createAdminClient();
+    const { error } = await supabase.from('hr_data').upsert({ type, data: body });
+    if (error) throw new Error(error.message);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function POST(req, { params }) {
   const { type } = params;
   if (!VALID_TYPES.includes(type)) return NextResponse.json({ error: 'Invalid type' }, { status: 400 });

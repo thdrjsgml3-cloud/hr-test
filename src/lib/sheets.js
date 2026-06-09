@@ -7,14 +7,33 @@ async function apiFetch(url, options) {
 }
 
 export async function loadData() {
-  const [interviews, onboards, proposals, costs, jds] = await Promise.all([
+  const [interviews, onboards, proposals, costs, jds, jdSettingsRaw, jdReports] = await Promise.all([
     apiFetch(`${API}/interviews`),
     apiFetch(`${API}/onboards`),
     apiFetch(`${API}/proposals`),
     apiFetch(`${API}/costs`),
     apiFetch(`${API}/jds`),
+    apiFetch(`${API}/jd_settings`).catch(() => null),
+    apiFetch(`${API}/jd_reports`).catch(() => []),
   ]);
-  return { interviews, onboards, proposals, costs, jds };
+  const jdSettings = (!jdSettingsRaw || Array.isArray(jdSettingsRaw) && jdSettingsRaw.length === 0) ? null : jdSettingsRaw;
+  return { interviews, onboards, proposals, costs, jds, jdSettings, jdReports: Array.isArray(jdReports) ? jdReports : [] };
+}
+
+export function apiSaveJdSettings(settings) {
+  return apiFetch(`${API}/jd_settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+}
+
+export function apiSaveJdReports(reports) {
+  return apiFetch(`${API}/jd_reports`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reports),
+  });
 }
 
 export function apiSaveAllJDs(rows) {
