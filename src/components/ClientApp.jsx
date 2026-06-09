@@ -1369,10 +1369,33 @@ const PLAT_KEYS     = ['saramin','jobkorea','albamon','wanted','remember'];
 const PLAT_LABELS   = { saramin:'사람인', jobkorea:'잡코리아', albamon:'알바몬', wanted:'원티드', remember:'리멤버' };
 const PLAT_VARIABLE = ['wanted','remember']; // 연봉 % 수수료 플랫폼
 
-function CostPlanReport({ activeJDs, periods, plan, onClose }) {
+function CostPlanReport({ activeJDs, periods, plan, costGroups=[], rowOrder=null, onClose }) {
   const parseAmt = t => { if(!t||!t.trim()||t.trim()==='-') return 0; const n=Number(t.replace(/[^0-9]/g,'')); return isNaN(n)?0:n; };
+
+  // Build effective row list (groups first, then ungrouped)
+  const groupedIds = new Set(costGroups.flatMap(g => g.jdIds));
+  const ungrouped  = activeJDs.filter(r => !groupedIds.has(r.id));
+  const defaultList = [
+    ...costGroups.map(g => ({ type:'group', id:g.id })),
+    ...ungrouped.map(r => ({ type:'jd', id:r.id })),
+  ];
+  let reportRows = rowOrder ? rowOrder.filter(item =>
+    item.type==='group' ? costGroups.some(g=>g.id===item.id) : ungrouped.some(r=>r.id===item.id)
+  ) : defaultList;
+  const inSet = new Set(reportRows.map(i=>i.type+':'+i.id));
+  reportRows = [...reportRows, ...defaultList.filter(i=>!inSet.has(i.type+':'+i.id))];
+
   const totals = {};
-  PLAT_KEYS.forEach(k => { totals[k] = activeJDs.reduce((s,r) => s+parseAmt((plan[r.id]||{})[k]), 0); });
+  PLAT_KEYS.forEach(k => {
+    totals[k] = reportRows.reduce((s, item) => {
+      if (item.type==='group') {
+        const g = costGroups.find(x=>x.id===item.id);
+        return s + (g && !g.free ? parseAmt((g.costs||{})[k]||'') : 0);
+      }
+      const p = plan[item.id]||{};
+      return s + (!p.free ? parseAmt(p[k]||'') : 0);
+    }, 0);
+  });
   const fixedTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(totals[k]||0), 0);
   const colH = k => PLAT_LABELS[k] + (periods[k] ? ` (${periods[k]})` : '');
 
@@ -1422,13 +1445,31 @@ function CostPlanReport({ activeJDs, periods, plan, onClose }) {
                 </tr>
               </thead>
               <tbody>
-                {activeJDs.map((r,i)=>(
-                  <tr key={r.id}>
-                    <td style={{...tdS(i),fontWeight:500}}>{r.position}</td>
-                    {PLAT_KEYS.map(k=><td key={k} style={{...tdS(i),textAlign:'right'}}>{(plan[r.id]||{})[k]||'-'}</td>)}
-                    <td style={tdS(i)}>{(plan[r.id]||{}).note||'-'}</td>
-                  </tr>
-                ))}
+                {reportRows.map((item,i) => {
+                  if (item.type==='group') {
+                    const g = costGroups.find(x=>x.id===item.id); if(!g) return null;
+                    const posNames = g.jdIds.map(id=>activeJDs.find(r=>r.id===id)?.position||'').filter(Boolean);
+                    return (
+                      <tr key={item.id} style={{background:'#f5f5f0'}}>
+                        <td style={{...tdS(i),fontWeight:600}}>
+                          {g.label||posNames.join(' · ')}
+                          <div style={{fontSize:10,color:'#888',fontWeight:400,marginTop:1}}>{posNames.join(', ')}</div>
+                        </td>
+                        {PLAT_KEYS.map(k=><td key={k} style={{...tdS(i),textAlign:'right'}}>{g.free?'무료':(g.costs||{})[k]||'-'}</td>)}
+                        <td style={tdS(i)}>{(g.costs||{}).note||'-'}</td>
+                      </tr>
+                    );
+                  }
+                  const r = activeJDs.find(x=>x.id===item.id); if(!r) return null;
+                  const p = plan[r.id]||{};
+                  return (
+                    <tr key={r.id}>
+                      <td style={{...tdS(i),fontWeight:500}}>{r.position}</td>
+                      {PLAT_KEYS.map(k=><td key={k} style={{...tdS(i),textAlign:'right'}}>{p.free?'무료':p[k]||'-'}</td>)}
+                      <td style={tdS(i)}>{p.note||'-'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr style={{fontWeight:600,background:'var(--color-surface-offset)'}}>
@@ -3531,6 +3572,10 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const [localPlan, setLocalPlan]   = useState(() => { const p={}; data.forEach(r=>{ p[r.id]={saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:'',...(r.costPlan||{})}; }); return p; });
   const [showCostReport, setShowCostReport] = useState(false);
   const [planDirty, setPlanDirty]   = useState(false);
+  // 그룹화 상태
+  const [costGroups, setCostGroups] = useState(() => { try { return JSON.parse(localStorage.getItem('jdCostGroups'))||[]; } catch { return []; } });
+  const [rowOrder,   setRowOrder]   = useState(() => { try { return JSON.parse(localStorage.getItem('jdRowOrder'))||null; } catch { return null; } });
+  const [selRows,    setSelRows]    = useState(new Set());
 
   useEffect(() => {
     setLocalPlan(prev => {
@@ -3542,6 +3587,102 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
 
   const parseAmt = t => { if(!t||!t.trim()||t.trim()==='-') return 0; const n=Number(t.replace(/[^0-9]/g,'')); return isNaN(n)?0:n; };
   const activeJDs = data.filter(r => r.status==='진행중');
+
+  // 그룹 helpers
+  const saveGroups = (groups) => { setCostGroups(groups); localStorage.setItem('jdCostGroups', JSON.stringify(groups)); };
+  const saveOrder  = (order)  => { setRowOrder(order);   localStorage.setItem('jdRowOrder',   JSON.stringify(order)); };
+
+  const groupedJdIds = useMemo(() => new Set(costGroups.flatMap(g => g.jdIds)), [costGroups]);
+  const ungroupedJDs = useMemo(() => activeJDs.filter(r => !groupedJdIds.has(r.id)), [activeJDs, groupedJdIds]);
+
+  const effectiveRowList = useMemo(() => {
+    const defaultList = [
+      ...costGroups.map(g => ({ type:'group', id:g.id })),
+      ...ungroupedJDs.map(r => ({ type:'jd', id:r.id })),
+    ];
+    if (!rowOrder) return defaultList;
+    const existing = rowOrder.filter(item =>
+      item.type === 'group' ? costGroups.some(g => g.id === item.id) : ungroupedJDs.some(r => r.id === item.id)
+    );
+    const inSet = new Set(existing.map(i => i.type+':'+i.id));
+    const missing = defaultList.filter(i => !inSet.has(i.type+':'+i.id));
+    return [...existing, ...missing];
+  }, [costGroups, ungroupedJDs, rowOrder]);
+
+  const rowTotals = useMemo(() => {
+    const t = {}; PLAT_KEYS.forEach(k => { t[k]=0; });
+    effectiveRowList.forEach(item => {
+      if (item.type === 'group') {
+        const g = costGroups.find(x => x.id === item.id);
+        if (g && !g.free) PLAT_KEYS.forEach(k => { t[k] += parseAmt((g.costs||{})[k]||''); });
+      } else {
+        const plan = localPlan[item.id]||{};
+        if (!plan.free) PLAT_KEYS.forEach(k => { t[k] += parseAmt(plan[k]||''); });
+      }
+    });
+    return t;
+  }, [effectiveRowList, costGroups, localPlan]);
+  const grandTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(rowTotals[k]||0),0);
+
+  const moveRow = (idx, dir) => {
+    const list = [...effectiveRowList];
+    const ti = idx + dir;
+    if (ti < 0 || ti >= list.length) return;
+    [list[idx], list[ti]] = [list[ti], list[idx]];
+    saveOrder(list);
+  };
+
+  const createGroup = () => {
+    const ids = [...selRows];
+    if (ids.length < 1) return;
+    const gid = 'g'+Date.now();
+    const ng = { id:gid, label:'', jdIds:ids, costs:{saramin:'',jobkorea:'',albamon:'',wanted:'',remember:'',note:''}, free:false };
+    saveGroups([...costGroups, ng]);
+    // Replace first selected row in order with group, remove rest
+    let list = [...effectiveRowList];
+    const firstIdx = list.findIndex(i => i.type==='jd' && ids.includes(i.id));
+    list = list.filter(i => !(i.type==='jd' && ids.slice(1).includes(i.id)));
+    const pos = list.findIndex(i => i.type==='jd' && i.id === ids[0]);
+    if (pos >= 0) list.splice(pos, 1, { type:'group', id:gid });
+    saveOrder(list);
+    setSelRows(new Set());
+    setPlanDirty(true);
+  };
+
+  const ungroupItem = (gid) => {
+    const g = costGroups.find(x => x.id === gid);
+    if (!g) return;
+    saveGroups(costGroups.filter(x => x.id !== gid));
+    const newList = effectiveRowList.flatMap(i =>
+      i.type==='group' && i.id===gid ? g.jdIds.map(id => ({ type:'jd', id })) : [i]
+    );
+    saveOrder(newList);
+    setPlanDirty(true);
+  };
+
+  const updateGroupCost = (gid, field, value) => {
+    let v = value;
+    if (field !== 'note' && value && !value.includes('%')) {
+      const n = Number(value.replace(/[^0-9]/g,''));
+      if (!isNaN(n)) v = n.toLocaleString('ko-KR');
+    }
+    saveGroups(costGroups.map(g => g.id===gid ? {...g, costs:{...(g.costs||{}),[field]:v}} : g));
+    setPlanDirty(true);
+  };
+  const updateGroupLabel = (gid, label) => {
+    saveGroups(costGroups.map(g => g.id===gid ? {...g, label} : g));
+    setPlanDirty(true);
+  };
+  const toggleGroupFree = (gid) => {
+    saveGroups(costGroups.map(g => g.id===gid ? {...g, free:!g.free} : g));
+    setPlanDirty(true);
+  };
+  const toggleJdFree = (id) => {
+    setLocalPlan(prev => ({...prev,[id]:{...(prev[id]||{}),free:!(prev[id]||{}).free}}));
+    setPlanDirty(true);
+  };
+
+  // 기존 개별 비용
   const planTotals = {};
   PLAT_KEYS.forEach(k=>{ planTotals[k]=activeJDs.reduce((s,r)=>s+parseAmt((localPlan[r.id]||{})[k]),0); });
   const planFixedTotal = PLAT_KEYS.filter(k=>!PLAT_VARIABLE.includes(k)).reduce((s,k)=>s+(planTotals[k]||0),0);
@@ -3559,6 +3700,8 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
     const updated = data.map(r=>({...r, costPlan: localPlan[r.id]||r.costPlan||{}}));
     onSaveAll(updated);
     localStorage.setItem('jdPeriods', JSON.stringify(periods));
+    localStorage.setItem('jdCostGroups', JSON.stringify(costGroups));
+    localStorage.setItem('jdRowOrder',   JSON.stringify(rowOrder));
     setPlanDirty(false);
   };
 
@@ -3722,58 +3865,141 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         </div>
 
         <div className="card" style={{padding:'12px 16px'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
             <div style={{fontWeight:600,fontSize:'var(--text-sm)'}}>
               진행중 포지션 예상 비용
               <span style={{fontWeight:400,fontSize:'var(--text-xs)',color:'var(--color-text-muted)',marginLeft:6}}>{activeJDs.length}개 포지션</span>
             </div>
-            <div style={{display:'flex',gap:8}}>
+            {selRows.size > 0 && (
+              <button className="btn btn-secondary" style={{fontSize:11,padding:'3px 10px'}} onClick={createGroup}>
+                ✦ 선택 {selRows.size}개 그룹으로 묶기
+              </button>
+            )}
+            <div style={{display:'flex',gap:8,marginLeft:'auto',alignItems:'center'}}>
               {planDirty && <button className="btn btn-secondary" style={{fontSize:12}} onClick={saveCostPlan}>💾 저장</button>}
-              <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)',alignSelf:'center'}}>
-                총 예상: <strong style={{color:'var(--color-primary)'}}>{fmtAmount(planFixedTotal)} + α</strong>
+              <span style={{fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>
+                총 예상: <strong style={{color:'var(--color-primary)'}}>{fmtAmount(grandTotal)} + α</strong>
               </span>
             </div>
           </div>
+
+          <div style={{fontSize:'var(--text-xs)',color:'var(--color-text-faint)',marginBottom:8}}>
+            체크박스로 직무를 선택한 뒤 "그룹으로 묶기" 버튼을 눌러 하나의 비용 행으로 합칠 수 있습니다.
+          </div>
+
           <div className="table-wrap">
             <table className="data-table">
               <colgroup>
-                <col style={{width:170}}/>
-                {PLAT_KEYS.map(k=><col key={k} style={{width:105}}/>)}
-                <col style={{width:140}}/>
+                <col style={{width:32}}/>{/* checkbox */}
+                <col style={{width:38}}/>{/* move */}
+                <col style={{width:180}}/>{/* 채용모집군 */}
+                {PLAT_KEYS.map(k=><col key={k} style={{width:108}}/>)}
+                <col style={{width:54}}/>{/* 무료 */}
+                <col style={{width:130}}/>{/* 비고 */}
+                <col style={{width:54}}/>{/* action */}
               </colgroup>
               <thead>
                 <tr>
+                  <th></th><th></th>
                   <th>채용모집군</th>
                   {PLAT_KEYS.map(k=><th key={k}>{PLAT_LABELS[k]}{periods[k]?` (${periods[k]})`:''}</th>)}
+                  <th style={{textAlign:'center'}}>무료</th>
                   <th>비고</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {activeJDs.length === 0
-                  ? <tr><td colSpan={PLAT_KEYS.length+2} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'24px 0'}}>진행중인 포지션이 없습니다</td></tr>
-                  : activeJDs.map(r=>(
-                    <tr key={r.id}>
-                      <td style={{fontWeight:500,fontSize:'var(--text-sm)'}}>{r.position}</td>
-                      {PLAT_KEYS.map(k=>(
-                        <td key={k}>
-                          <InlineText value={(localPlan[r.id]||{})[k]||''} onSave={v=>updateLocalPlan(r.id,k,v)} placeholder="-"/>
-                        </td>
-                      ))}
-                      <td><InlineText value={(localPlan[r.id]||{}).note||''} onSave={v=>updateLocalPlan(r.id,'note',v)} placeholder="-"/></td>
-                    </tr>
-                  ))
+                {effectiveRowList.length === 0
+                  ? <tr><td colSpan={PLAT_KEYS.length+5} style={{textAlign:'center',color:'var(--color-text-faint)',padding:'24px 0'}}>진행중인 포지션이 없습니다</td></tr>
+                  : effectiveRowList.map((item, idx) => {
+                    if (item.type === 'group') {
+                      const g = costGroups.find(x => x.id === item.id);
+                      if (!g) return null;
+                      const posNames = g.jdIds.map(id => activeJDs.find(r=>r.id===id)?.position||'').filter(Boolean);
+                      return (
+                        <tr key={item.id} style={{background:'var(--color-surface-2)'}}>
+                          <td style={{textAlign:'center',fontSize:10,color:'var(--color-text-faint)'}}>묶음</td>
+                          <td style={{textAlign:'center'}}>
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+                              <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,lineHeight:1,padding:0,color:'var(--color-text-muted)'}} onClick={()=>moveRow(idx,-1)}>▲</button>
+                              <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,lineHeight:1,padding:0,color:'var(--color-text-muted)'}} onClick={()=>moveRow(idx,1)}>▼</button>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{fontWeight:600,fontSize:'var(--text-sm)'}}>
+                              <InlineText value={g.label||posNames.join(' · ')} onSave={v=>updateGroupLabel(g.id,v)} placeholder={posNames.join(' · ')}/>
+                            </div>
+                            <div style={{fontSize:10,color:'var(--color-text-faint)',marginTop:2}}>{posNames.join(', ')} ({posNames.length}개)</div>
+                          </td>
+                          {PLAT_KEYS.map(k=>(
+                            <td key={k}>
+                              {g.free
+                                ? <span style={{color:'var(--color-success)',fontSize:11,fontWeight:700}}>무료</span>
+                                : <InlineText value={(g.costs||{})[k]||''} onSave={v=>updateGroupCost(g.id,k,v)} placeholder="-"/>}
+                            </td>
+                          ))}
+                          <td style={{textAlign:'center'}}>
+                            <input type="checkbox" checked={!!g.free} onChange={()=>toggleGroupFree(g.id)} style={{cursor:'pointer'}}/>
+                          </td>
+                          <td>
+                            {g.free ? '-' : <InlineText value={(g.costs||{}).note||''} onSave={v=>updateGroupCost(g.id,'note',v)} placeholder="-"/>}
+                          </td>
+                          <td style={{textAlign:'center'}}>
+                            <button style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--color-error)',padding:'2px 4px',borderRadius:3,border:'1px solid var(--color-error)'}} onClick={()=>ungroupItem(g.id)}>해제</button>
+                          </td>
+                        </tr>
+                      );
+                    } else {
+                      const r = activeJDs.find(x => x.id === item.id);
+                      if (!r) return null;
+                      const plan = localPlan[r.id]||{};
+                      return (
+                        <tr key={r.id}>
+                          <td style={{textAlign:'center'}}>
+                            <input type="checkbox"
+                              checked={selRows.has(r.id)}
+                              onChange={e=>{
+                                setSelRows(prev=>{const n=new Set(prev); e.target.checked?n.add(r.id):n.delete(r.id); return n;});
+                              }}
+                              style={{cursor:'pointer'}}/>
+                          </td>
+                          <td style={{textAlign:'center'}}>
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+                              <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,lineHeight:1,padding:0,color:'var(--color-text-muted)'}} onClick={()=>moveRow(idx,-1)}>▲</button>
+                              <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,lineHeight:1,padding:0,color:'var(--color-text-muted)'}} onClick={()=>moveRow(idx,1)}>▼</button>
+                            </div>
+                          </td>
+                          <td style={{fontWeight:500,fontSize:'var(--text-sm)'}}>{r.position}</td>
+                          {PLAT_KEYS.map(k=>(
+                            <td key={k}>
+                              {plan.free
+                                ? <span style={{color:'var(--color-success)',fontSize:11,fontWeight:700}}>무료</span>
+                                : <InlineText value={plan[k]||''} onSave={v=>updateLocalPlan(r.id,k,v)} placeholder="-"/>}
+                            </td>
+                          ))}
+                          <td style={{textAlign:'center'}}>
+                            <input type="checkbox" checked={!!plan.free} onChange={()=>toggleJdFree(r.id)} style={{cursor:'pointer'}}/>
+                          </td>
+                          <td>
+                            {plan.free ? '-' : <InlineText value={plan.note||''} onSave={v=>updateLocalPlan(r.id,'note',v)} placeholder="-"/>}
+                          </td>
+                          <td></td>
+                        </tr>
+                      );
+                    }
+                  })
                 }
               </tbody>
-              {activeJDs.length > 0 && <tfoot>
+              {effectiveRowList.length > 0 && <tfoot>
                 <tr style={{fontWeight:600,background:'var(--color-surface-offset)'}}>
-                  <td style={{fontSize:'var(--text-xs)'}}>예상 비용 소계</td>
-                  {PLAT_KEYS.map(k=><td key={k} style={{textAlign:'right',fontSize:'var(--text-xs)'}}>{planTotals[k]>0?fmtAmount(planTotals[k]):'-'}</td>)}
-                  <td/>
+                  <td colSpan={3} style={{fontSize:'var(--text-xs)'}}>예상 비용 소계</td>
+                  {PLAT_KEYS.map(k=><td key={k} style={{textAlign:'right',fontSize:'var(--text-xs)'}}>{rowTotals[k]>0?fmtAmount(rowTotals[k]):'-'}</td>)}
+                  <td colSpan={3}/>
                 </tr>
                 <tr style={{fontWeight:700,background:'var(--color-gold-light)',color:'var(--color-gold)'}}>
-                  <td>총 예상 비용</td>
-                  <td colSpan={PLAT_KEYS.length} style={{textAlign:'right'}}>{fmtAmount(planFixedTotal)} + α</td>
-                  <td/>
+                  <td colSpan={3}>총 예상 비용</td>
+                  <td colSpan={PLAT_KEYS.length} style={{textAlign:'right'}}>{fmtAmount(grandTotal)} + α</td>
+                  <td colSpan={3}/>
                 </tr>
               </tfoot>}
             </table>
@@ -3781,7 +4007,7 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
         </div>
       </>}
 
-      {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} onClose={()=>setShowCostReport(false)}/>}
+      {showCostReport && <CostPlanReport activeJDs={activeJDs} periods={periods} plan={localPlan} costGroups={costGroups} rowOrder={rowOrder} onClose={()=>setShowCostReport(false)}/>}
     </div>
   );
 });
