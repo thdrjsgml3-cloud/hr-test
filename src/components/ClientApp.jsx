@@ -3562,6 +3562,39 @@ function OtherWarningPage() {
 ═══════════════════════════════════════════ */
 const JD_RPT_COL_DEFAULT = { group:200, saramin:110, jobkorea:110, albamon:110, wanted:110, remember:110, note:130 };
 
+const _taStyle = { width:'100%', resize:'vertical', background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:6, padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--color-text)', fontFamily:'inherit', boxSizing:'border-box', marginTop:4 };
+const _labelStyle = { fontSize:'var(--text-xs)', color:'var(--color-text-muted)', fontWeight:600, display:'block', marginBottom:3 };
+function EditForm({ form, setForm, onSave, onCancel, onDel, isNew }) {
+  return (
+    <div style={{padding:'14px 16px', background:'var(--color-surface-offset)', borderRadius:6}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:6}}>
+        {[['회사','company', JD_COMPANIES],['본부/부서','division'],['팀','team'],['포지션명','position'],['경력 구분','experienceLevel'],['채용 상태','status',['진행중','마감']]].map(([label,field,opts])=>(
+          <div key={field}>
+            <label style={_labelStyle}>{label}</label>
+            {opts
+              ? <select className="filter-select" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}>
+                  {opts.map(o=><option key={o}>{o}</option>)}
+                </select>
+              : <input className="search-input" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
+            }
+          </div>
+        ))}
+      </div>
+      {[['업무','duties',5],['자격요건','requirements',4],['우대사항','preferred',4]].map(([label,field,rows])=>(
+        <div key={field} style={{marginTop:8}}>
+          <label style={_labelStyle}>{label}</label>
+          <textarea rows={rows} style={_taStyle} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
+        </div>
+      ))}
+      <div style={{display:'flex',gap:8,marginTop:12}}>
+        <button className="btn btn-primary" onClick={onSave}>저장</button>
+        <button className="btn btn-secondary" onClick={onCancel}>취소</button>
+        {!isNew && <button className="btn btn-secondary" style={{marginLeft:'auto',color:'var(--color-error)'}} onClick={onDel}>삭제</button>}
+      </div>
+    </div>
+  );
+}
+
 const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
   const [companyTab, setCompanyTab]   = useState('전체');
   const [statusFilter, setStatusFilter] = useState('전체');
@@ -3785,38 +3818,6 @@ const JDPage = React.memo(function JDPage({ data, onSaveAll, costs }) {
     onSaveAll([...data, {...newForm, id:newId}]);
     setAddingNew(false); setNewForm(blankForm);
   };
-
-  const taStyle = { width:'100%', resize:'vertical', background:'var(--color-surface)', border:'1px solid var(--color-divider)', borderRadius:6, padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--color-text)', fontFamily:'inherit', boxSizing:'border-box', marginTop:4 };
-  const labelStyle = { fontSize:'var(--text-xs)', color:'var(--color-text-muted)', fontWeight:600, display:'block', marginBottom:3 };
-
-  const EditForm = ({ form, setForm, onSave, onCancel, onDel, isNew }) => (
-    <div style={{padding:'14px 16px', background:'var(--color-surface-offset)', borderRadius:6}}>
-      <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:6}}>
-        {[['회사','company', JD_COMPANIES],['본부/부서','division'],['팀','team'],['포지션명','position'],['경력 구분','experienceLevel'],['채용 상태','status',['진행중','마감']]].map(([label,field,opts])=>(
-          <div key={field}>
-            <label style={labelStyle}>{label}</label>
-            {opts
-              ? <select className="filter-select" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}>
-                  {opts.map(o=><option key={o}>{o}</option>)}
-                </select>
-              : <input className="search-input" style={{width:'100%'}} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
-            }
-          </div>
-        ))}
-      </div>
-      {[['업무','duties',5],['자격요건','requirements',4],['우대사항','preferred',4]].map(([label,field,rows])=>(
-        <div key={field} style={{marginTop:8}}>
-          <label style={labelStyle}>{label}</label>
-          <textarea rows={rows} style={taStyle} value={form[field]||''} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>
-        </div>
-      ))}
-      <div style={{display:'flex',gap:8,marginTop:12}}>
-        <button className="btn btn-primary" onClick={onSave}>저장</button>
-        <button className="btn btn-secondary" onClick={onCancel}>취소</button>
-        {!isNew && <button className="btn btn-secondary" style={{marginLeft:'auto',color:'var(--color-error)'}} onClick={onDel}>삭제</button>}
-      </div>
-    </div>
-  );
 
   return (
     <div>
