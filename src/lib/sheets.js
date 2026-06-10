@@ -14,7 +14,7 @@ async function apiFetch(url, options) {
 }
 
 export async function loadData() {
-  const [interviews, onboards, proposals, costs, jds, jdSettingsRaw, jdReports, attendMiss, otherWarn] = await Promise.all([
+  const [interviews, onboards, proposals, costs, jds, jdSettingsRaw, jdReports, attendMiss, otherWarn, interviewLogs] = await Promise.all([
     apiFetch(`${API}/interviews`),
     apiFetch(`${API}/onboards`),
     apiFetch(`${API}/proposals`),
@@ -24,9 +24,10 @@ export async function loadData() {
     apiFetch(`${API}/jd_reports`).catch(() => []),
     apiFetch(`${API}/attend_miss`).catch(() => []),
     apiFetch(`${API}/other_warn`).catch(() => []),
+    apiFetch(`${API}/interview_logs`).catch(() => []),
   ]);
   const jdSettings = (!jdSettingsRaw || Array.isArray(jdSettingsRaw) && jdSettingsRaw.length === 0) ? null : jdSettingsRaw;
-  return { interviews, onboards, proposals, costs, jds, jdSettings, jdReports: Array.isArray(jdReports) ? jdReports : [], attendMiss: Array.isArray(attendMiss) ? attendMiss : [], otherWarn: Array.isArray(otherWarn) ? otherWarn : [] };
+  return { interviews, onboards, proposals, costs, jds, jdSettings, jdReports: Array.isArray(jdReports) ? jdReports : [], attendMiss: Array.isArray(attendMiss) ? attendMiss : [], otherWarn: Array.isArray(otherWarn) ? otherWarn : [], interviewLogs: Array.isArray(interviewLogs) ? interviewLogs : [] };
 }
 
 export function apiSaveJdSettings(settings) {
@@ -55,6 +56,14 @@ export function apiSaveAttendMiss(rows) {
 
 export function apiSaveOtherWarn(rows) {
   return apiFetch(`${API}/other_warn`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rows),
+  });
+}
+
+export function apiSaveInterviewLogs(rows) {
+  return apiFetch(`${API}/interview_logs`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(rows),

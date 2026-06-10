@@ -5,7 +5,7 @@ import { Chart, registerables } from 'chart.js';
 import { LayoutDashboard, CalendarCheck, UserCheck, Send, Menu, Plus, Sun, Moon, Search, Settings, Receipt, FileText, MessageSquare, Clock, AlertTriangle, ClipboardList, Users, BookText } from 'lucide-react';
 import { STATUS_COLORS, CHART_COLORS, DEFAULT_INTERVIEWS, DEFAULT_ONBOARDS, DEFAULT_PROPOSALS } from '@/lib/constants';
 import { today, getHighlightDate } from '@/lib/utils';
-import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs, apiSaveJdSettings, apiSaveJdReports, apiSaveAttendMiss, apiSaveOtherWarn } from '@/lib/sheets';
+import { loadData, apiUpdate, apiAdd, apiInsert, apiDelete, apiSync, apiSaveAllJDs, apiSaveJdSettings, apiSaveJdReports, apiSaveAttendMiss, apiSaveOtherWarn, apiSaveInterviewLogs } from '@/lib/sheets';
 
 Chart.register(...registerables);
 
@@ -2780,7 +2780,164 @@ const MEETING_SHEET_ID = '1H7r8nPzsNp_suHwBoIlCnc21Wn4-wKWJpOHkUpYA99s';
 const MEETING_GID = '923966650';
 let _meetingCache = null;
 
-function MeetingLogPage() {
+const PROBATION_QUESTIONS = [
+  { category: '근무 현황', items: [
+    '지난 시간 동안 어떠셨나요?',
+    '동료들과는 어떤가요?',
+  ]},
+  { category: '업무 현황', items: [
+    '불편하거나 개선이 필요한 부분은?',
+    '가장 좋았던 부분은?',
+    '일할 때, 어떤 것이 가장 힘이 나게 하나요?',
+    '일할 때, 어떤 것이 가장 사기를 저하시키나요?',
+    '업무적 측면에서 가장 기대되고 동기부여가 되는 요소는 무엇인가요?',
+    '최근 업무량은 과한가요, 적은가요, 아니면 딱 적당한가요?',
+    '지금 겪고 있는 가장 큰 문제는 무엇인가요?',
+  ]},
+  { category: '본인 의사', items: [
+    '정규 전환 제안 시, 계속 일할 생각이 있으신가요?',
+    '마지막으로 하고 싶은 말',
+  ]},
+];
+
+const REGULAR_QUESTIONS = [
+  { category: '오프닝', items: [
+    '요즘 회사 생활 전반을 10점 만점으로 표현한다면 몇 점 정도인가요?',
+    '최근 가장 만족스러웠던 순간과, 가장 답답했던 순간은 언제였나요?',
+  ]},
+  { category: '일에 대한 만족도', items: [
+    '현재 맡고 계신 역할·업무 중에서 가장 재미있거나 보람 있는 일 3가지와, 힘든 일 3가지를 꼽아본다면 무엇인가요?',
+    '본인의 강점이 가장 잘 발휘된다고 느끼는 순간은 언제인가요?',
+    '반대로, "이 강점은 아직 회사에서 충분히 안 쓰이는 것 같다"고 느끼는 부분이 있다면 무엇인가요?',
+    '지금 본인의 업무 목표나 우선순위는 충분히 명확하다고 느끼시나요?',
+    '더 명확해지려면 무엇이 필요할까요? (예: 목표 정의, 데이터, 의사결정 기준 등)',
+    '일을 하면서 "이건 정말 비효율적이다 / 바뀌었으면 좋겠다"고 느끼는 프로세스나 도구가 있다면 무엇인가요?',
+  ]},
+  { category: '성장 및 커리어', items: [
+    "앞으로 6~12개월 안에 달성하고 싶은 '성장 목표' 2~3가지를 꼽는다면 무엇인가요?",
+    '그 목표를 이루기 위해 회사/팀/리더가 도와줄 수 있는 부분은 무엇이라고 보시나요?',
+    '현재 역할이 본인의 장기 커리어 방향(3~5년)과 얼마나 맞다고 느끼시나요?',
+    '새로 도전해보고 싶은 업무나 프로젝트가 있다면 무엇인가요?',
+  ]},
+  { category: '팀워크 및 조직문화', items: [
+    '우리 팀/조직에서 "이건 진짜 계속 가져가야 한다"고 느끼는 문화나 방식 1~2가지는 무엇인가요?',
+    '반대로, 우리 조직이 더 성장하려면 "이건 꼭 바뀌었으면 좋겠다"고 느끼는 문화나 관행 1~2가지는 무엇인가요?',
+    '팀 안에서 의견이나 반대 의견을 이야기할 때, 편하게 말할 수 있다고 느끼시나요?',
+    '동료들과의 협업에서 요즘 가장 만족스러운 점과, 개선되면 좋을 점은 각각 무엇인가요?',
+  ]},
+  { category: '리더십 및 커뮤니케이션', items: [
+    '현재 리더와의 1:1 또는 소통 방식에서 가장 좋은 점은 무엇인가요?',
+    '리더가 어떤 부분을 달리해 준다면, 일이 더 잘되거나 덜 힘들 거라고 느끼시나요?',
+    '최근에 받았던 피드백 중 가장 기억에 남는 것은 무엇인가요?',
+  ]},
+  { category: '회사 비전 제도 환경', items: [
+    '회사의 비전과 현재 방향성이 본인에게 얼마나 이해되고 공감된다고 느끼시나요?',
+    '현재 회사의 제도·프로세스(평가, 보상, 복지, 근무 제도 등) 중에서 가장 만족하는 점 한 가지와, 아쉬운 점 한 가지를 꼽는다면 무엇인가요?',
+    '우리 회사가 "이직 시장에서 경쟁력 있는 회사"가 되기 위해 가장 먼저 개선해야 한다고 느끼는 부분은 무엇인가요?',
+    '업무 환경(물리적 환경, 장비, 툴, 정보 접근성 등)에서 개선되면 체감 효과가 클 것 같은 부분이 있다면 무엇인가요?',
+  ]},
+  { category: '몰입도 및 이직 리스크', items: [
+    '요즘 "계속 이 회사에 다니고 싶다"는 생각을 강하게 만들어주는 요인은 무엇인가요?',
+    '반대로, 이직을 고민해본 적이 있다면 가장 큰 이유는 무엇이었나요?',
+    '1년 뒤에도 이 회사에 계속 있을 가능성을 0~100%로 표현한다면 어느 정도인가요?',
+  ]},
+  { category: '마무리', items: [
+    '제가 지금 당장 해줄 수 있는 "가장 작은 변화 한 가지"를 꼽는다면 무엇인가요?',
+    '오늘 이야기한 내용 중 "꼭 액션으로 이어졌으면 하는 것" 세 가지만 정리해본다면 무엇인가요?',
+    '이 질문지에 추가되었으면 하는 질문이나, 다음 면담 때 꼭 다뤘으면 하는 주제가 있다면 말씀해 주세요.',
+    '마지막으로 하고 싶은 말씀이 있나요?',
+  ]},
+];
+
+const INTERVIEW_LOG_TYPES = {
+  '시용기간 1차 면담': { questions: PROBATION_QUESTIONS },
+  '시용기간 2차 면담': { questions: PROBATION_QUESTIONS },
+  '정규기간 1차 면담': { questions: REGULAR_QUESTIONS },
+  '정규기간 2차 면담': { questions: REGULAR_QUESTIONS },
+  '추가 면담': { questions: null },
+  '비고': { questions: null },
+};
+
+function HoverWriteCell({ status, onWrite }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} style={{minHeight:22, display:'flex', alignItems:'center', justifyContent:'center'}}>
+      {hover
+        ? <button className="btn btn-sm btn-primary" style={{fontSize:11,padding:'2px 8px'}} onClick={onWrite}>작성</button>
+        : <span>{status||'-'}</span>}
+    </div>
+  );
+}
+
+function InterviewLogModal({ name, logType, questions, record, onSave, onDelete, onClose }) {
+  const flat = useMemo(() => {
+    if (!questions) return [];
+    const list = [];
+    questions.forEach(group => group.items.forEach(text => list.push({ category: group.category, text })));
+    return list;
+  }, [questions]);
+
+  const [date, setDate] = useState(record?.date || new Date().toISOString().slice(0,10));
+  const [interviewer, setInterviewer] = useState(record?.interviewer || '');
+  const [answers, setAnswers] = useState(() => record?.answers || flat.map(()=>''));
+  const [overall, setOverall] = useState(record?.overall || '');
+
+  const setAnswer = (idx, val) => setAnswers(prev => { const next=[...prev]; next[idx]=val; return next; });
+
+  let lastCategory = null;
+
+  return (
+    <>
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:999 }} onClick={onClose}/>
+      <div style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:1000, background:'var(--color-surface)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:20, width:560, maxWidth:'90vw', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ fontWeight:700, fontSize:'var(--text-base)', marginBottom:12 }}>{name} — {logType}</div>
+        <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+          <div style={{ flex:1 }}>
+            <label style={_labelStyle}>면담일시</label>
+            <input type="date" className="inline-input" value={date} onChange={e=>setDate(e.target.value)} style={{ width:'100%', boxSizing:'border-box' }}/>
+          </div>
+          <div style={{ flex:1 }}>
+            <label style={_labelStyle}>면담자</label>
+            <input className="inline-input" value={interviewer} onChange={e=>setInterviewer(e.target.value)} placeholder="담당자 이름" style={{ width:'100%', boxSizing:'border-box' }}/>
+          </div>
+        </div>
+        {questions ? flat.map((q, idx) => {
+          const showCategory = q.category !== lastCategory;
+          lastCategory = q.category;
+          return (
+            <div key={idx} style={{ marginBottom:10 }}>
+              {showCategory && <div style={{ fontSize:'var(--text-xs)', fontWeight:700, color:'var(--color-blue)', marginTop:14, marginBottom:4 }}>{q.category}</div>}
+              <label style={_labelStyle}>{idx+1}. {q.text}</label>
+              <textarea style={_taStyle} rows={2} value={answers[idx]||''} onChange={e=>setAnswer(idx,e.target.value)}/>
+            </div>
+          );
+        }) : (
+          <div style={{ marginBottom:10 }}>
+            <label style={_labelStyle}>내용</label>
+            <textarea style={_taStyle} rows={6} value={overall} onChange={e=>setOverall(e.target.value)}/>
+          </div>
+        )}
+        {questions && (
+          <div style={{ marginBottom:10 }}>
+            <label style={_labelStyle}>종합</label>
+            <textarea style={_taStyle} rows={3} value={overall} onChange={e=>setOverall(e.target.value)}/>
+          </div>
+        )}
+        <div style={{ display:'flex', justifyContent:'space-between', marginTop:14 }}>
+          <div>
+            {record && <button className="btn btn-sm" style={{ color:'var(--color-error)', opacity:0.7 }} onClick={()=>{ if(confirm('삭제하시겠습니까?')) onDelete(); }}>삭제</button>}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn btn-secondary" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={()=>onSave({ date, interviewer, answers, overall })}>저장</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
   const [records, setRecords] = useState(() => JSON.parse(localStorage.getItem('meetingLog') || '[]'));
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('meetingLogColW')) || { date:100, dept:90, name:90, content:300, manager:90 }; } catch { return { date:100, dept:90, name:90, content:300, manager:90 }; } });
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -2789,7 +2946,26 @@ function MeetingLogPage() {
   const [sheetLoading, setSheetLoading] = useState(!_meetingCache);
   const [sheetError, setSheetError] = useState(null);
   const [sheetSearch, setSheetSearch] = useState('');
+  const [logModal, setLogModal] = useState(null);
   const idRef = useRef(1);
+
+  const saveInterviewLog = (data) => {
+    const existing = (interviewLogs||[]).find(l => l.name===logModal.name && l.logType===logModal.logType);
+    let next;
+    if (existing) {
+      next = interviewLogs.map(l => l===existing ? { ...l, ...data } : l);
+    } else {
+      const id = (interviewLogs||[]).length ? Math.max(...interviewLogs.map(l=>l.id))+1 : 1;
+      next = [...(interviewLogs||[]), { id, name: logModal.name, logType: logModal.logType, ...data }];
+    }
+    onSaveInterviewLogs(next);
+    setLogModal(null);
+  };
+  const deleteInterviewLog = () => {
+    const next = (interviewLogs||[]).filter(l => !(l.name===logModal.name && l.logType===logModal.logType));
+    onSaveInterviewLogs(next);
+    setLogModal(null);
+  };
 
   useEffect(() => {
     if (_meetingCache) { setSheetData(_meetingCache); setSheetLoading(false); return; }
@@ -2872,6 +3048,7 @@ function MeetingLogPage() {
       {sheetData && (() => {
         const idxHire = sheetData.headers.indexOf('입사일자');
         const idxResign = sheetData.headers.indexOf('퇴사일자');
+        const idxName = sheetData.headers.indexOf('이름');
         const idxP1 = sheetData.headers.indexOf('시용기간 1차 면담');
         const idxP2 = sheetData.headers.indexOf('시용기간 2차 면담');
         const today = new Date();
@@ -2908,9 +3085,27 @@ function MeetingLogPage() {
                   .map((row, ri) => (
                     <tr key={ri}>
                       <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
-                      {sheetData.headers.map((_,ci) => {
+                      {sheetData.headers.map((header,ci) => {
                         const overdue = (ci===idxP1 && isOverdue(row, idxP1, 40)) || (ci===idxP2 && isOverdue(row, idxP2, 80));
-                        return <td key={ci} style={overdue?{background:'var(--color-error-light)',color:'var(--color-error)',fontWeight:700}:undefined}>{row[ci]||''}</td>;
+                        const tdStyle = overdue ? {background:'var(--color-error-light)',color:'var(--color-error)',fontWeight:700} : undefined;
+                        const logCfg = INTERVIEW_LOG_TYPES[header];
+                        if (logCfg && idxName >= 0) {
+                          const empName = row[idxName];
+                          const status = row[ci];
+                          const record = (interviewLogs||[]).find(l => l.name===empName && l.logType===header);
+                          let content;
+                          if (record) {
+                            content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record})}>열기</button>;
+                          } else if (status === '이동') {
+                            content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>window.open(`https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/edit#gid=${MEETING_GID}`,'_blank')}>열기</button>;
+                          } else if (status === '-' || status === '') {
+                            content = <HoverWriteCell status={status} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
+                          } else {
+                            content = status;
+                          }
+                          return <td key={ci} style={{...tdStyle, textAlign:'center'}}>{content}</td>;
+                        }
+                        return <td key={ci} style={tdStyle}>{row[ci]||''}</td>;
                       })}
                     </tr>
                   ))}
@@ -2996,6 +3191,18 @@ function MeetingLogPage() {
             </div>
           </div>
         </>
+      )}
+
+      {logModal && (
+        <InterviewLogModal
+          name={logModal.name}
+          logType={logModal.logType}
+          questions={logModal.questions}
+          record={logModal.record}
+          onSave={saveInterviewLog}
+          onDelete={deleteInterviewLog}
+          onClose={()=>setLogModal(null)}
+        />
       )}
     </div>
   );
@@ -4202,6 +4409,7 @@ export default function ClientApp() {
   const [jdReports, setJdReports] = useState([]);
   const [attendMissData, setAttendMissData] = useState([]);
   const [otherWarnData, setOtherWarnData] = useState([]);
+  const [interviewLogs, setInterviewLogs] = useState([]);
   const [jds, setJDs] = useState(() => {
     try {
       const overrides = JSON.parse(localStorage.getItem('jd_status_overrides') || '{}');
@@ -4252,7 +4460,7 @@ export default function ClientApp() {
     let cancelled = false;
     const tryLoad = async (attempt = 0) => {
       try {
-        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j, jdSettings: js, jdReports: jr, attendMiss: am, otherWarn: ow } = await loadData();
+        const { interviews: i, onboards: o, proposals: p, costs: c, jds: j, jdSettings: js, jdReports: jr, attendMiss: am, otherWarn: ow, interviewLogs: il } = await loadData();
         if (cancelled) return;
         startTransition(() => {
           setInterviews(i);
@@ -4280,6 +4488,7 @@ export default function ClientApp() {
               if (local.length > 0) { setOtherWarnData(local); apiSaveOtherWarn(local).catch(console.error); }
             } catch {}
           }
+          if (il) setInterviewLogs(il);
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
       } catch (err) {
@@ -4448,6 +4657,11 @@ export default function ClientApp() {
     apiSaveOtherWarn(rows).catch(console.error);
   }, []);
 
+  const saveInterviewLogs = useCallback((rows) => {
+    setInterviewLogs(rows);
+    apiSaveInterviewLogs(rows).catch(console.error);
+  }, []);
+
   const migrateLocalStorage = useCallback(async () => {
     const jobs = [];
     const am = JSON.parse(localStorage.getItem('attendMiss') || '[]');
@@ -4574,7 +4788,7 @@ export default function ClientApp() {
           {page==='cost' && <CostPage data={costs} onUpdate={updateCost} onAdd={addCostRow} onShowMenu={showMenu} appSettings={appSettings}/>}
           {page==='jd' && <JDPage data={jds} onSaveAll={saveAllJDs} costs={costs} jdSettings={jdSettings} jdReports={jdReports} onSaveJdSettings={saveJdSettings} onSaveJdReports={saveJdReports}/>}
           {page==='worker' && <WorkerPage filter={filterW} setFilter={setFilterW}/>}
-          {page==='meeting' && <MeetingLogPage/>}
+          {page==='meeting' && <MeetingLogPage interviewLogs={interviewLogs} onSaveInterviewLogs={saveInterviewLogs}/>}
           {page==='guide' && <GuidePage/>}
           {page==='attend-miss' && <AttendanceMissPage initData={attendMissData} onSave={saveAttendMiss}/>}
 
