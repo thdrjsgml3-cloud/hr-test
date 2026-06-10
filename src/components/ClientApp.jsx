@@ -2957,6 +2957,7 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
   const [sheetLoading, setSheetLoading] = useState(!_meetingCache);
   const [sheetError, setSheetError] = useState(null);
   const [sheetSearch, setSheetSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [logModal, setLogModal] = useState(null);
   const idRef = useRef(1);
 
@@ -3077,6 +3078,11 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
         <div style={{ marginBottom:24 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
             <div style={{ fontWeight:700, fontSize:'var(--text-sm)' }}>면담 기록 ({sheetData.rows.length}건)</div>
+            <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+              <option value="all">전체</option>
+              <option value="active">재직중</option>
+              <option value="resigned">퇴사</option>
+            </select>
             <div className="search-wrap">
               <Search size={13}/>
               <input className="search-input" placeholder="검색..." value={sheetSearch} onChange={e=>setSheetSearch(e.target.value)} style={{ width:160 }}/>
@@ -3093,6 +3099,11 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
               <tbody>
                 {sheetData.rows
                   .filter(r => !sheetSearch || r.some(v => v.toLowerCase().includes(sheetSearch.toLowerCase())))
+                  .filter(r => {
+                    if (statusFilter === 'all' || idxResign < 0) return true;
+                    const resigned = !!(r[idxResign]||'').trim();
+                    return statusFilter === 'resigned' ? resigned : !resigned;
+                  })
                   .map((row, ri) => (
                     <tr key={ri}>
                       <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
@@ -3107,12 +3118,8 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
                           let content;
                           if (record) {
                             content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record})}>열기</button>;
-                          } else if (status === '이동') {
-                            content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>window.open(`https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/edit#gid=${MEETING_GID}`,'_blank')}>열기</button>;
-                          } else if (status === '-' || status === '') {
-                            content = <HoverWriteCell status={status} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
                           } else {
-                            content = status;
+                            content = <HoverWriteCell status={status} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
                           }
                           return <td key={ci} style={{...tdStyle, textAlign:'center'}}>{content}</td>;
                         }
