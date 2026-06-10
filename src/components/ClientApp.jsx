@@ -2854,7 +2854,7 @@ const INTERVIEW_LOG_TYPES = {
   '시용기간 2차 면담': { questions: PROBATION_QUESTIONS },
   '정규기간 1차 면담': { questions: REGULAR_QUESTIONS },
   '정규기간 2차 면담': { questions: REGULAR_QUESTIONS },
-  '추가 면담': { questions: null },
+  '추가 면담': { questions: 'dynamic' },
   '비고': { questions: null },
 };
 
@@ -2882,7 +2882,7 @@ function AutoTextarea({ value, style, ...rest }) {
 
 function InterviewLogModal({ name, logType, questions, record, onSave, onDelete, onClose }) {
   const flat = useMemo(() => {
-    if (!questions) return [];
+    if (!questions || questions === 'dynamic') return [];
     const list = [];
     questions.forEach(group => group.items.forEach(text => list.push({ category: group.category, text })));
     return list;
@@ -2892,8 +2892,12 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
   const [interviewer, setInterviewer] = useState(record?.interviewer || '');
   const [answers, setAnswers] = useState(() => record?.answers || flat.map(()=>''));
   const [overall, setOverall] = useState(record?.overall || '');
+  const [qaList, setQaList] = useState(() => (record?.qaList && record.qaList.length) ? record.qaList : [{ q: '', a: '' }]);
 
   const setAnswer = (idx, val) => setAnswers(prev => { const next=[...prev]; next[idx]=val; return next; });
+  const updateQA = (idx, field, val) => setQaList(prev => prev.map((item,i)=> i===idx ? { ...item, [field]: val } : item));
+  const addQA = () => setQaList(prev => [...prev, { q: '', a: '' }]);
+  const removeQA = (idx) => setQaList(prev => prev.length <= 1 ? prev : prev.filter((_,i)=>i!==idx));
 
   let lastCategory = null;
 
@@ -2912,7 +2916,21 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
             <input className="inline-input" value={interviewer} onChange={e=>setInterviewer(e.target.value)} placeholder="담당자 이름" style={{ width:'100%', boxSizing:'border-box' }}/>
           </div>
         </div>
-        {questions ? flat.map((q, idx) => {
+        {questions === 'dynamic' ? (
+          <div style={{ marginBottom:10 }}>
+            {qaList.map((item, idx) => (
+              <div key={idx} style={{ marginBottom:10, padding:10, border:'1px solid var(--color-divider)', borderRadius:6 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                  <label style={_labelStyle}>질문 {idx+1}</label>
+                  {qaList.length > 1 && <button className="btn btn-sm" style={{ color:'var(--color-error)', opacity:0.7, fontSize:11, padding:'2px 6px' }} onClick={()=>removeQA(idx)}>삭제</button>}
+                </div>
+                <input style={{ ..._taStyle, marginTop:0, marginBottom:6 }} value={item.q} onChange={e=>updateQA(idx,'q',e.target.value)} placeholder="질문 입력"/>
+                <AutoTextarea style={_taStyle} rows={2} value={item.a} onChange={e=>updateQA(idx,'a',e.target.value)} placeholder="답변 입력"/>
+              </div>
+            ))}
+            <button className="btn btn-secondary btn-sm" onClick={addQA}>+ 질문 추가</button>
+          </div>
+        ) : questions ? flat.map((q, idx) => {
           const showCategory = q.category !== lastCategory;
           lastCategory = q.category;
           return (
@@ -2928,7 +2946,7 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
             <AutoTextarea style={_taStyle} rows={6} value={overall} onChange={e=>setOverall(e.target.value)}/>
           </div>
         )}
-        {questions && (
+        {questions && questions !== 'dynamic' && (
           <div style={{ marginBottom:10 }}>
             <label style={_labelStyle}>종합</label>
             <AutoTextarea style={_taStyle} rows={3} value={overall} onChange={e=>setOverall(e.target.value)}/>
@@ -2940,7 +2958,7 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
           </div>
           <div style={{ display:'flex', gap:8 }}>
             <button className="btn btn-secondary" onClick={onClose}>취소</button>
-            <button className="btn btn-primary" onClick={()=>onSave({ date, interviewer, answers, overall })}>저장</button>
+            <button className="btn btn-primary" onClick={()=>onSave(questions==='dynamic' ? { date, interviewer, qaList } : { date, interviewer, answers, overall })}>저장</button>
           </div>
         </div>
       </div>
@@ -3115,11 +3133,12 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
                           const empName = row[idxName];
                           const status = row[ci];
                           const record = (interviewLogs||[]).find(l => l.name===empName && l.logType===header);
+                          const displayStatus = status === '(스킵)' ? '-' : status;
                           let content;
-                          if (record) {
+                          if (record || (displayStatus !== '-' && displayStatus !== '')) {
                             content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record})}>열기</button>;
                           } else {
-                            content = <HoverWriteCell status={status} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
+                            content = <HoverWriteCell status={displayStatus} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
                           }
                           return <td key={ci} style={{...tdStyle, textAlign:'center'}}>{content}</td>;
                         }
