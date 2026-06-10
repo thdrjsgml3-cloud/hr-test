@@ -2889,7 +2889,7 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
   return (
     <>
       <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:999 }} onClick={onClose}/>
-      <div style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:1000, background:'var(--color-surface)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:20, width:560, maxWidth:'90vw', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+      <div style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:1000, background:'var(--color-surface)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:24, width:820, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
         <div style={{ fontWeight:700, fontSize:'var(--text-base)', marginBottom:12 }}>{name} — {logType}</div>
         <div style={{ display:'flex', gap:10, marginBottom:14 }}>
           <div style={{ flex:1 }}>
