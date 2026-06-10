@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { VALID_TYPES, getData, setData, nextId } from '@/lib/hrData';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function GET(req, { params }) {
   const { type } = params;
@@ -17,8 +18,15 @@ export async function PUT(req, { params }) {
   try {
     const body = await req.json();
     const supabase = createAdminClient();
-    const { error } = await supabase.from('hr_data').upsert({ type, data: body });
-    if (error) throw new Error(error.message);
+    const { data: existing, error: selError } = await supabase.from('hr_data').select('type').eq('type', type);
+    if (selError) throw new Error(selError.message);
+    if (existing && existing.length > 0) {
+      const { error } = await supabase.from('hr_data').update({ data: body }).eq('type', type);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from('hr_data').insert({ type, data: body });
+      if (error) throw new Error(error.message);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });

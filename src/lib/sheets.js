@@ -2,7 +2,14 @@ const API = '/api';
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
-  if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+  if (!res.ok) {
+    let msg = `서버 오류 (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.error) msg += `: ${body.error}`;
+    } catch {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
