@@ -2231,6 +2231,21 @@ function extractCellValue(cell) {
   return cell.f != null ? cell.f : (cell.v != null ? cell.v : '');
 }
 
+function parseMeetingSheet(text) {
+  const table = parseGvizResponse(text);
+  const allLabels = table.cols.map(c => (c.label||'').trim());
+  const colIdx = allLabels.map((l,i)=>i).filter(i => allLabels[i]);
+  let secondCount = 0;
+  const headers = colIdx.map(i => {
+    const h = allLabels[i];
+    if (h.includes('정규계약 1차 면담')) return '정규기간 1차 면담';
+    if (h === '2차 면담') { secondCount++; return secondCount===1 ? '시용기간 2차 면담' : '정규기간 2차 면담'; }
+    return h;
+  });
+  const rows = table.rows.map(r => colIdx.map(i => String(extractCellValue(r.c[i])??''))).filter(r => r.some(v => v.trim() !== ''));
+  return { headers, rows };
+}
+
 async function fetchWorkerSheetTable(sheetName) {
   const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
   const res = await fetch(url);
@@ -2781,12 +2796,7 @@ function MeetingLogPage() {
     const url = `https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
     fetch(url).then(r => r.text()).then(text => {
       try {
-        const table = parseGvizResponse(text);
-        const headers = table.cols.map(c => (c.label||'').trim()).filter(Boolean);
-        const rows = table.rows.map(r =>
-          r.c.map(cell => String(extractCellValue(cell)??''))
-        ).filter(r => r.some(v => v.trim() !== ''));
-        _meetingCache = { headers, rows };
+        _meetingCache = parseMeetingSheet(text);
         setSheetData(_meetingCache);
       } catch(e) { setSheetError('데이터 파싱 오류: '+e.message); }
       setSheetLoading(false);
@@ -2849,10 +2859,7 @@ function MeetingLogPage() {
             onClick={()=>{ _meetingCache=null; setSheetData(null); setSheetLoading(true); setSheetError(null);
               const url=`https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
               fetch(url).then(r=>r.text()).then(text=>{
-                const table=parseGvizResponse(text);
-                const headers=table.cols.map(c=>(c.label||'').trim()).filter(Boolean);
-                const rows=table.rows.map(r=>r.c.map(cell=>String(extractCellValue(cell)??''))).filter(r=>r.some(v=>v.trim()!==''));
-                _meetingCache={headers,rows}; setSheetData(_meetingCache); setSheetLoading(false);
+                _meetingCache=parseMeetingSheet(text); setSheetData(_meetingCache); setSheetLoading(false);
               }).catch(e=>{setSheetError(e.message);setSheetLoading(false);});
             }}>새로고침</button>
           <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 메모 추가</button>
@@ -2862,7 +2869,23 @@ function MeetingLogPage() {
       {/* 구글 시트 면담일지 */}
       {sheetLoading && <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', marginBottom:16 }}>구글 시트 불러오는 중...</div>}
       {sheetError && <div style={{ color:'var(--color-error)', fontSize:'var(--text-sm)', marginBottom:16 }}>⚠ {sheetError}</div>}
-      {sheetData && (
+      {sheetData && (() => {
+        const idxHire = sheetData.headers.indexOf('입사일자');
+        const idxResign = sheetData.headers.indexOf('퇴사일자');
+        const idxP1 = sheetData.headers.indexOf('시용기간 1차 면담');
+        const idxP2 = sheetData.headers.indexOf('시용기간 2차 면담');
+        const today = new Date();
+        const isOverdue = (row, idxStatus, days) => {
+          if (idxStatus < 0 || idxHire < 0) return false;
+          const status = (row[idxStatus]||'').trim();
+          if (status !== '' && status !== '-') return false;
+          if (idxResign >= 0 && (row[idxResign]||'').trim()) return false;
+          const hire = new Date(row[idxHire]);
+          if (isNaN(hire.getTime())) return false;
+          const due = new Date(hire); due.setDate(due.getDate()+days);
+          return today > due;
+        };
+        return (
         <div style={{ marginBottom:24 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
             <div style={{ fontWeight:700, fontSize:'var(--text-sm)' }}>면담 기록 ({sheetData.rows.length}건)</div>
@@ -2885,14 +2908,18 @@ function MeetingLogPage() {
                   .map((row, ri) => (
                     <tr key={ri}>
                       <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
-                      {sheetData.headers.map((_,ci) => <td key={ci}>{row[ci]||''}</td>)}
+                      {sheetData.headers.map((_,ci) => {
+                        const overdue = (ci===idxP1 && isOverdue(row, idxP1, 40)) || (ci===idxP2 && isOverdue(row, idxP2, 80));
+                        return <td key={ci} style={overdue?{background:'var(--color-error-light)',color:'var(--color-error)',fontWeight:700}:undefined}>{row[ci]||''}</td>;
+                      })}
                     </tr>
                   ))}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:8 }}>메모 ({records.length}건)</div>
       <div className="table-wrap">
