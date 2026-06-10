@@ -2869,6 +2869,17 @@ function HoverWriteCell({ status, onWrite }) {
   );
 }
 
+function AutoTextarea({ value, style, ...rest }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return <textarea ref={ref} value={value} style={{ ...style, overflow:'hidden', resize:'none' }} {...rest}/>;
+}
+
 function InterviewLogModal({ name, logType, questions, record, onSave, onDelete, onClose }) {
   const flat = useMemo(() => {
     if (!questions) return [];
@@ -2908,19 +2919,19 @@ function InterviewLogModal({ name, logType, questions, record, onSave, onDelete,
             <div key={idx} style={{ marginBottom:10 }}>
               {showCategory && <div style={{ fontSize:'var(--text-xs)', fontWeight:700, color:'var(--color-blue)', marginTop:14, marginBottom:4 }}>{q.category}</div>}
               <label style={_labelStyle}>{idx+1}. {q.text}</label>
-              <textarea style={_taStyle} rows={2} value={answers[idx]||''} onChange={e=>setAnswer(idx,e.target.value)}/>
+              <AutoTextarea style={_taStyle} rows={2} value={answers[idx]||''} onChange={e=>setAnswer(idx,e.target.value)}/>
             </div>
           );
         }) : (
           <div style={{ marginBottom:10 }}>
             <label style={_labelStyle}>내용</label>
-            <textarea style={_taStyle} rows={6} value={overall} onChange={e=>setOverall(e.target.value)}/>
+            <AutoTextarea style={_taStyle} rows={6} value={overall} onChange={e=>setOverall(e.target.value)}/>
           </div>
         )}
         {questions && (
           <div style={{ marginBottom:10 }}>
             <label style={_labelStyle}>종합</label>
-            <textarea style={_taStyle} rows={3} value={overall} onChange={e=>setOverall(e.target.value)}/>
+            <AutoTextarea style={_taStyle} rows={3} value={overall} onChange={e=>setOverall(e.target.value)}/>
           </div>
         )}
         <div style={{ display:'flex', justifyContent:'space-between', marginTop:14 }}>
