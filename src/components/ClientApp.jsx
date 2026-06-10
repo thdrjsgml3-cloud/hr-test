@@ -4526,6 +4526,13 @@ export default function ClientApp() {
                 setSheetStatus({msg:`동기화 완료: 면접 ${r.counts.interviews}건, 입사자 ${r.counts.onboards}건, 제안 ${r.counts.proposals}건`, level:'success'});
               } catch(e) { setSheetStatus({msg:`동기화 실패: ${e.message}`, level:'error'}); }
             }}>🔄 시트 동기화</button>
+            <button className="btn btn-secondary" style={{whiteSpace:'nowrap'}} onClick={async()=>{
+              setSheetStatus({msg:'데이터 서버에 업로드 중...', level:'info'});
+              try {
+                await migrateLocalStorage();
+                setSheetStatus({msg:'✅ 업로드 완료! 다른 사람도 새로고침하면 데이터가 보입니다.', level:'success'});
+              } catch(e) { setSheetStatus({msg:`업로드 실패: ${e.message}`, level:'error'}); }
+            }}>☁️ 데이터 업로드</button>
             <button className="theme-toggle" onClick={()=>setTheme(t=>t==='dark'?'light':'dark')}>
               {theme==='dark' ? <Sun size={18}/> : <Moon size={18}/>}
             </button>
