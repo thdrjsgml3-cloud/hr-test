@@ -2858,6 +2858,21 @@ const INTERVIEW_LOG_TYPES = {
   '비고': { questions: null },
 };
 
+function InlineNoteCell({ value, onSave }) {
+  const [val, setVal] = useState(value || '');
+  useEffect(() => { setVal(value || ''); }, [value]);
+  return (
+    <input
+      className="inline-input"
+      value={val}
+      placeholder="-"
+      style={{ textAlign:'center' }}
+      onChange={e=>setVal(e.target.value)}
+      onBlur={()=>{ if (val !== (value||'')) onSave(val); }}
+    />
+  );
+}
+
 function HoverWriteCell({ status, onWrite }) {
   const [hover, setHover] = useState(false);
   return (
@@ -2979,16 +2994,20 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
   const [logModal, setLogModal] = useState(null);
   const idRef = useRef(1);
 
-  const saveInterviewLog = (data) => {
-    const existing = (interviewLogs||[]).find(l => l.name===logModal.name && l.logType===logModal.logType);
+  const upsertInterviewLog = (empName, logType, data) => {
+    const existing = (interviewLogs||[]).find(l => l.name===empName && l.logType===logType);
     let next;
     if (existing) {
       next = interviewLogs.map(l => l===existing ? { ...l, ...data } : l);
     } else {
       const id = (interviewLogs||[]).length ? Math.max(...interviewLogs.map(l=>l.id))+1 : 1;
-      next = [...(interviewLogs||[]), { id, name: logModal.name, logType: logModal.logType, ...data }];
+      next = [...(interviewLogs||[]), { id, name: empName, logType, ...data }];
     }
     onSaveInterviewLogs(next);
+  };
+
+  const saveInterviewLog = (data) => {
+    upsertInterviewLog(logModal.name, logModal.logType, data);
     setLogModal(null);
   };
   const deleteInterviewLog = () => {
@@ -3076,22 +3095,8 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
       {sheetLoading && <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', marginBottom:16 }}>구글 시트 불러오는 중...</div>}
       {sheetError && <div style={{ color:'var(--color-error)', fontSize:'var(--text-sm)', marginBottom:16 }}>⚠ {sheetError}</div>}
       {sheetData && (() => {
-        const idxHire = sheetData.headers.indexOf('입사일자');
         const idxResign = sheetData.headers.indexOf('퇴사일자');
         const idxName = sheetData.headers.indexOf('이름');
-        const idxP1 = sheetData.headers.indexOf('시용기간 1차 면담');
-        const idxP2 = sheetData.headers.indexOf('시용기간 2차 면담');
-        const today = new Date();
-        const isOverdue = (row, idxStatus, days) => {
-          if (idxStatus < 0 || idxHire < 0) return false;
-          const status = (row[idxStatus]||'').trim();
-          if (status !== '' && status !== '-') return false;
-          if (idxResign >= 0 && (row[idxResign]||'').trim()) return false;
-          const hire = new Date(row[idxHire]);
-          if (isNaN(hire.getTime())) return false;
-          const due = new Date(hire); due.setDate(due.getDate()+days);
-          return today > due;
-        };
         return (
         <div style={{ marginBottom:24 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
@@ -3126,13 +3131,15 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
                     <tr key={ri}>
                       <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
                       {sheetData.headers.map((header,ci) => {
-                        const overdue = (ci===idxP1 && isOverdue(row, idxP1, 40)) || (ci===idxP2 && isOverdue(row, idxP2, 80));
-                        const tdStyle = overdue ? {background:'var(--color-error-light)',color:'var(--color-error)',fontWeight:700} : undefined;
                         const logCfg = INTERVIEW_LOG_TYPES[header];
                         if (logCfg && idxName >= 0) {
                           const empName = row[idxName];
                           const status = row[ci];
                           const record = (interviewLogs||[]).find(l => l.name===empName && l.logType===header);
+                          if (header === '비고') {
+                            const initial = record ? (record.overall||'') : ((status||'')==='-'||(status||'')===''||(status||'').startsWith('이동') ? '' : status);
+                            return <td key={ci} style={{textAlign:'center'}}><InlineNoteCell value={initial} onSave={(val)=>upsertInterviewLog(empName, header, { date: new Date().toISOString().slice(0,10), interviewer: record?.interviewer||'', overall: val })}/></td>;
+                          }
                           const displayStatus = status === '(스킵)' ? '-' : status;
                           let content;
                           if (record || (displayStatus !== '-' && displayStatus !== '')) {
@@ -3140,9 +3147,9 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
                           } else {
                             content = <HoverWriteCell status={displayStatus} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
                           }
-                          return <td key={ci} style={{...tdStyle, textAlign:'center'}}>{content}</td>;
+                          return <td key={ci} style={{textAlign:'center'}}>{content}</td>;
                         }
-                        return <td key={ci} style={tdStyle}>{row[ci]||''}</td>;
+                        return <td key={ci}>{row[ci]||''}</td>;
                       })}
                     </tr>
                   ))}
