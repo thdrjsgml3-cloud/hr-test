@@ -4781,11 +4781,11 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='meeting'?'active':''}`} onClick={()=>nav('meeting')}><BookText size={16}/> 면담일지</button>
           <div className="nav-divider"/>
           <div className="nav-section-label">채용 관리</div>
-          <button className={`nav-item ${page==='interview'?'active':''}`} onClick={()=>nav('interview')}><CalendarCheck size={16}/> 면접 일정{!dataLoaded && <span className="nav-count">...</span>}</button>
-          <button className={`nav-item ${page==='onboard'?'active':''}`} onClick={()=>nav('onboard')}><UserCheck size={16}/> 교육 및 입사자{!dataLoaded && <span className="nav-count">...</span>}</button>
-          <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황{!dataLoaded && <span className="nav-count">...</span>}</button>
-          <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용{!dataLoaded && <span className="nav-count">...</span>}</button>
-          <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리{!dataLoaded && <span className="nav-count">...</span>}</button>
+          <button className={`nav-item ${page==='interview'?'active':''}`} onClick={()=>nav('interview')}><CalendarCheck size={16}/> 면접 일정{!dataLoaded && <span className="nav-count">연결중</span>}</button>
+          <button className={`nav-item ${page==='onboard'?'active':''}`} onClick={()=>nav('onboard')}><UserCheck size={16}/> 교육 및 입사자{!dataLoaded && <span className="nav-count">연결중</span>}</button>
+          <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황{!dataLoaded && <span className="nav-count">연결중</span>}</button>
+          <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용{!dataLoaded && <span className="nav-count">연결중</span>}</button>
+          <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리{!dataLoaded && <span className="nav-count">연결중</span>}</button>
           <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내 내용 양식</button>
           <div className="nav-divider"/>
           <div className="nav-section-label">근태 관리</div>
