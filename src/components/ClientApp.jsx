@@ -4462,6 +4462,7 @@ export default function ClientApp() {
     } catch {}
     return DEFAULT_JDS;
   });
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [page, setPage] = useState('dashboard');
   const [appSettings, setAppSettings] = useState(() => {
     try {
@@ -4535,6 +4536,7 @@ export default function ClientApp() {
           if (il) setInterviewLogs(il);
         });
         setSheetStatus({ msg: '서버에서 데이터를 불러왔습니다.', level: 'success' });
+        setDataLoaded(true);
       } catch (err) {
         if (cancelled) return;
         if (attempt < 8) {
@@ -4542,6 +4544,7 @@ export default function ClientApp() {
           setTimeout(() => tryLoad(attempt + 1), 2000);
         } else {
           setSheetStatus({ msg: `서버 연결 실패: ${err.message}`, level: 'error' });
+          setDataLoaded(true);
         }
       }
     };
@@ -4778,11 +4781,11 @@ export default function ClientApp() {
           <button className={`nav-item ${page==='meeting'?'active':''}`} onClick={()=>nav('meeting')}><BookText size={16}/> 면담일지</button>
           <div className="nav-divider"/>
           <div className="nav-section-label">채용 관리</div>
-          <button className={`nav-item ${page==='interview'?'active':''}`} onClick={()=>nav('interview')}><CalendarCheck size={16}/> 면접 일정<span className="nav-count">{interviews.length}</span></button>
-          <button className={`nav-item ${page==='onboard'?'active':''}`} onClick={()=>nav('onboard')}><UserCheck size={16}/> 교육 및 입사자<span className="nav-count">{onboards.length}</span></button>
-          <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황<span className="nav-count">{proposals.length}</span></button>
-          <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용<span className="nav-count">{costs.length}</span></button>
-          <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리<span className="nav-count">{jds.filter(r=>r.status==='진행중').length}</span></button>
+          <button className={`nav-item ${page==='interview'?'active':''}`} onClick={()=>nav('interview')}><CalendarCheck size={16}/> 면접 일정{!dataLoaded && <span className="nav-count">...</span>}</button>
+          <button className={`nav-item ${page==='onboard'?'active':''}`} onClick={()=>nav('onboard')}><UserCheck size={16}/> 교육 및 입사자{!dataLoaded && <span className="nav-count">...</span>}</button>
+          <button className={`nav-item ${page==='proposal'?'active':''}`} onClick={()=>nav('proposal')}><Send size={16}/> 포지션 제안 현황{!dataLoaded && <span className="nav-count">...</span>}</button>
+          <button className={`nav-item ${page==='cost'?'active':''}`} onClick={()=>nav('cost')}><Receipt size={16}/> 채용 비용{!dataLoaded && <span className="nav-count">...</span>}</button>
+          <button className={`nav-item ${page==='jd'?'active':''}`} onClick={()=>nav('jd')}><FileText size={16}/> 채용 J/D 관리{!dataLoaded && <span className="nav-count">...</span>}</button>
           <button className={`nav-item ${page==='guide'?'active':''}`} onClick={()=>nav('guide')}><MessageSquare size={16}/> 채용 안내 내용 양식</button>
           <div className="nav-divider"/>
           <div className="nav-section-label">근태 관리</div>
