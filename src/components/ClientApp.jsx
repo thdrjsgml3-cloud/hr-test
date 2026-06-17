@@ -3644,11 +3644,11 @@ function AttendanceMissPage({ initData, onSave }) {
       })()}
 
       {warnModal && (
-        <div className="modal-overlay open" onClick={() => setWarnModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:560 }}>
-            <div className="modal-header">
-              <div className="modal-title">근태 경고 안내 — {warnModal.name}</div>
-              <button className="modal-close" onClick={() => setWarnModal(null)}>✕</button>
+        <div style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={() => setWarnModal(null)}>
+          <div style={{ background:'var(--color-surface)', borderRadius:'var(--radius-lg)', boxShadow:'var(--color-shadow-md)', padding:24, width:560, maxWidth:'95vw', maxHeight:'90vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <div style={{ fontWeight:700, fontSize:'var(--text-base)' }}>근태 경고 안내 — {warnModal.name}</div>
+              <button style={{ fontSize:16, color:'var(--color-text-muted)', padding:'2px 6px' }} onClick={() => setWarnModal(null)}>✕</button>
             </div>
             <div style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)', marginBottom:6 }}>이메일 초안을 수정 후 복사하여 발송하세요.</div>
             <textarea
