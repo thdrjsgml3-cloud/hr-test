@@ -2815,8 +2815,8 @@ function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false, onNavigate
 /* ═══════════════════════════════════════════
    MEETING LOG PAGE (면담일지)
 ═══════════════════════════════════════════ */
-const MEETING_SHEET_ID = '1H7r8nPzsNp_suHwBoIlCnc21Wn4-wKWJpOHkUpYA99s';
-const MEETING_GID = '923966650';
+const MEETING_SHEET_ID = '1clV3svIBT5rhiLj5KIkRtDp1cS4YvzJQUmdm-dLlhxE';
+const MEETING_GID = '0';
 let _meetingCache = null;
 
 const PROBATION_QUESTIONS = [

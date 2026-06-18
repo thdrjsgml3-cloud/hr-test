@@ -1,4 +1,4 @@
-export const SHEET_ID = '1fgq3zlrZYReidY5-0QFUht48mQBdctgEpYkE-xp5g3U';
+export const SHEET_ID = '10xgEQgoBL9tp-jslIkEN-Y4UEPmYs_oece58qMZiJmw';
 export const MANAGERS = ['정제원', '송건희', '김대현', '전고은'];
 export const APPLICANT_PLATFORMS = ['사람인', '잡코리아', '원티드', '리멤버', '알바몬', '지인소개'];
 export const PROPOSAL_PLATFORMS = ['사람인', '잡코리아', '원티드', '리멤버', '알바몬'];
