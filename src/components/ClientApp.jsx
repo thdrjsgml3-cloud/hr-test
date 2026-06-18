@@ -540,6 +540,7 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
     return new Set(defaults.length ? defaults : ALL_MONTHS);
   });
   const [showPeriodReport, setShowPeriodReport] = useState(false);
+  const [expandedPlatform, setExpandedPlatform] = useState(null);
   const toggleMonth = m => setSelMonths(p => { const n=new Set(p); n.has(m)?n.delete(m):n.add(m); return n; });
   const toggleAll = () => setSelMonths(p => p.size===ALL_MONTHS.length ? new Set() : new Set(ALL_MONTHS));
 
@@ -593,6 +594,20 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
   fp.forEach(r => { if(ppCounts[r.platform]!=null) ppCounts[r.platform]++; });
   const ppLabels = appSettings.proposalPlatforms.filter(k=>ppCounts[k]>0);
   const ppTotal = ppLabels.reduce((s,k) => s + ppCounts[k], 0);
+
+  // 플랫폼별 직무 세분화
+  const ppJobBreakdown = useMemo(() => {
+    const result = {};
+    ppLabels.forEach(plat => {
+      const jobs = {};
+      fp.filter(r => r.platform === plat).forEach(r => {
+        const j = (r.job||'').trim() || '(직무 미입력)';
+        jobs[j] = (jobs[j]||0) + 1;
+      });
+      result[plat] = Object.entries(jobs).sort((a,b) => b[1]-a[1]);
+    });
+    return result;
+  }, [fp, ppLabels]);
 
   // 담당자별 포지션 제안 횟수
   const mgrPropCounts = {};
@@ -676,16 +691,38 @@ const DashboardPage = React.memo(function DashboardPage({ interviews, onboards, 
             ? <div style={{textAlign:'center',color:'var(--color-text-faint)',padding:'32px 0',fontSize:'var(--text-sm)'}}>데이터 없음</div>
             : <>
                 <ChartBox type="doughnut" data={{labels:ppLabels,datasets:[{data:ppLabels.map(k=>ppCounts[k]),backgroundColor:CHART_COLORS,borderWidth:2,borderColor}]}} options={{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}} onChartClick={(idx)=>onNavigate('proposal',{platform:ppLabels[idx]})}/>
-                <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:5}}>
-                  {ppLabels.map((k,i)=>(
-                    <div key={k} onClick={()=>onNavigate('proposal',{platform:k})} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)',cursor:'pointer',borderRadius:4,padding:'2px 4px',transition:'background 0.15s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-offset)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <div style={{width:10,height:10,borderRadius:'50%',background:CHART_COLORS[i%CHART_COLORS.length],flexShrink:0}}/>
-                      <span style={{flex:1}}>{k}</span>
-                      <span style={{fontWeight:600}}>{ppCounts[k]}건</span>
-                      <span style={{color:'var(--color-text-muted)',minWidth:40,textAlign:'right'}}>{pct(ppCounts[k],ppTotal)}%</span>
-                    </div>
-                  ))}
-                  <div style={{borderTop:'1px solid var(--color-divider)',marginTop:2,paddingTop:4,display:'flex',justifyContent:'space-between',fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>
+                <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:2}}>
+                  {ppLabels.map((k,i)=>{
+                    const isExp = expandedPlatform === k;
+                    const jobs = ppJobBreakdown[k] || [];
+                    const platTotal = ppCounts[k];
+                    return (
+                      <div key={k}>
+                        <div onClick={()=>setExpandedPlatform(isExp ? null : k)} style={{display:'flex',alignItems:'center',gap:8,fontSize:'var(--text-sm)',cursor:'pointer',borderRadius:4,padding:'3px 4px',transition:'background 0.15s',background:isExp?'var(--color-surface-offset)':'transparent'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-offset)'} onMouseLeave={e=>{ if(!isExp) e.currentTarget.style.background='transparent'; }}>
+                          <div style={{width:10,height:10,borderRadius:'50%',background:CHART_COLORS[i%CHART_COLORS.length],flexShrink:0}}/>
+                          <span style={{flex:1,fontWeight:isExp?600:400}}>{k}</span>
+                          <span style={{fontWeight:600}}>{platTotal}건</span>
+                          <span style={{color:'var(--color-text-muted)',minWidth:36,textAlign:'right'}}>{pct(platTotal,ppTotal)}%</span>
+                          <span style={{fontSize:10,color:'var(--color-text-faint)',marginLeft:2}}>{isExp?'▲':'▼'}</span>
+                        </div>
+                        {isExp && (
+                          <div style={{marginLeft:18,marginBottom:4,borderLeft:'2px solid var(--color-divider)',paddingLeft:8}}>
+                            {jobs.map(([job,cnt])=>(
+                              <div key={job} onClick={()=>onNavigate('proposal',{platform:k,job})} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,cursor:'pointer',padding:'2px 4px',borderRadius:3,color:'var(--color-text-muted)',transition:'background 0.12s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-primary-light)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                <span style={{flex:1}}>{job}</span>
+                                <span style={{fontWeight:600,color:'var(--color-text)'}}>{cnt}건</span>
+                                <span style={{minWidth:32,textAlign:'right'}}>{pct(cnt,platTotal)}%</span>
+                              </div>
+                            ))}
+                            <div onClick={()=>onNavigate('proposal',{platform:k})} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,cursor:'pointer',padding:'2px 4px',marginTop:2,borderRadius:3,color:'var(--color-primary)',transition:'background 0.12s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--color-primary-light)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                              <span style={{flex:1,fontWeight:600}}>{k} 전체 보기 →</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div style={{borderTop:'1px solid var(--color-divider)',marginTop:4,paddingTop:4,display:'flex',justifyContent:'space-between',fontSize:'var(--text-xs)',color:'var(--color-text-muted)'}}>
                     <span>합계</span><span style={{fontWeight:600}}>{ppTotal}건</span>
                   </div>
                 </div>
@@ -974,10 +1011,11 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
 
   const filtered = useMemo(() =>
     data.filter(r =>
-      (!filter.search || r.name.toLowerCase().includes(filter.search) || r.job.toLowerCase().includes(filter.search)) &&
+      (!filter.search || r.name.toLowerCase().includes(filter.search) || (r.job||'').toLowerCase().includes(filter.search)) &&
       (!filter.manager || r.manager === filter.manager) &&
       (!filter.platform || r.platform === filter.platform) &&
-      (!filter.result || r.result === filter.result)
+      (!filter.result || r.result === filter.result) &&
+      (!filter.job || (r.job||'').trim() === filter.job)
     ).sort((a,b) => b.date.localeCompare(a.date)),
     [data, filter]
   );
@@ -997,6 +1035,7 @@ const ProposalPage = React.memo(function ProposalPage({ data, filter, setFilter,
         <select className="filter-select" value={filter.platform} onChange={e=>setFilter(f=>({...f,platform:e.target.value}))}><option value="">전체</option>{appSettings.proposalPlatforms.map(p=><option key={p}>{p}</option>)}</select>
         <span className="filter-label">결과</span>
         <select className="filter-select" value={filter.result} onChange={e=>setFilter(f=>({...f,result:e.target.value}))}><option value="">전체</option><option>대기</option><option>응답</option><option>미응답</option><option>거절</option><option>면접진행</option></select>
+        {filter.job && <span style={{display:'flex',alignItems:'center',gap:4,background:'var(--color-primary-light)',color:'var(--color-primary)',borderRadius:'var(--radius-full)',padding:'2px 10px',fontSize:'var(--text-xs)',fontWeight:600,whiteSpace:'nowrap'}}>직무: {filter.job}<button style={{marginLeft:4,fontWeight:700,color:'var(--color-primary)'}} onClick={()=>setFilter(f=>({...f,job:''}))}>×</button></span>}
       </div>
       <div className="table-wrap">
         <table ref={pTbRef} className="data-table" >
@@ -4493,7 +4532,7 @@ export default function ClientApp() {
   const [, startTransition] = useTransition();
   const [filterI, setFilterI] = useState({ search:'', manager:'', platform:'', attendance:'', passed:'' });
   const [filterO, setFilterO] = useState({ search:'', manager:'', status:'' });
-  const [filterP, setFilterP] = useState({ search:'', manager:'', platform:'', result:'' });
+  const [filterP, setFilterP] = useState({ search:'', manager:'', platform:'', result:'', job:'' });
   const [filterW, setFilterW] = useState(null);
 
   // 현재 state의 최신값을 insertRow에서 참조하기 위한 ref
@@ -4736,7 +4775,7 @@ export default function ClientApp() {
     if (targetPage === 'interview') {
       setFilterI({ search:'', manager:'', platform:'', attendance:'', passed:'', ...filters });
     } else if (targetPage === 'proposal') {
-      setFilterP({ search:'', manager:'', platform:'', result:'', ...filters });
+      setFilterP({ search:'', manager:'', platform:'', result:'', job:'', ...filters });
     } else if (targetPage === 'onboard') {
       setFilterO({ search:'', manager:'', status:'', ...filters });
     } else if (targetPage === 'worker') {
