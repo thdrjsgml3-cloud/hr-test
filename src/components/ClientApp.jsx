@@ -2270,20 +2270,6 @@ function extractCellValue(cell) {
   return cell.f != null ? cell.f : (cell.v != null ? cell.v : '');
 }
 
-function parseMeetingSheet(text) {
-  const table = parseGvizResponse(text);
-  const allLabels = table.cols.map(c => (c.label||'').trim());
-  const colIdx = allLabels.map((l,i)=>i).filter(i => allLabels[i]);
-  let secondCount = 0;
-  const headers = colIdx.map(i => {
-    const h = allLabels[i];
-    if (h.includes('정규계약 1차 면담')) return '정규기간 1차 면담';
-    if (h === '2차 면담') { secondCount++; return secondCount===1 ? '시용기간 2차 면담' : '정규기간 2차 면담'; }
-    return h;
-  });
-  const rows = table.rows.map(r => colIdx.map(i => String(extractCellValue(r.c[i])??''))).filter(r => r.some(v => v.trim() !== ''));
-  return { headers, rows };
-}
 
 async function fetchWorkerSheetTable(sheetName) {
   const url = `https://docs.google.com/spreadsheets/d/${WORKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
@@ -2815,9 +2801,6 @@ function WorkerSummaryCard({ selMonths, deptFilter, onlyCharts=false, onNavigate
 /* ═══════════════════════════════════════════
    MEETING LOG PAGE (면담일지)
 ═══════════════════════════════════════════ */
-const MEETING_SHEET_ID = '1H7r8nPzsNp_suHwBoIlCnc21Wn4-wKWJpOHkUpYA99s';
-const MEETING_GID = '923966650';
-let _meetingCache = null;
 
 const PROBATION_QUESTIONS = [
   { category: '근무 현황', items: [
@@ -3025,11 +3008,6 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
   const [colW, setColW] = useState(() => { try { return JSON.parse(localStorage.getItem('meetingLogColW')) || { date:100, dept:90, name:90, content:300, manager:90 }; } catch { return { date:100, dept:90, name:90, content:300, manager:90 }; } });
   const [ctxMenu, setCtxMenu] = useState(null);
   const [viewPopup, setViewPopup] = useState(null);
-  const [sheetData, setSheetData] = useState(_meetingCache);
-  const [sheetLoading, setSheetLoading] = useState(!_meetingCache);
-  const [sheetError, setSheetError] = useState(null);
-  const [sheetSearch, setSheetSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [logModal, setLogModal] = useState(null);
   const idRef = useRef(1);
 
@@ -3055,17 +3033,6 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
     setLogModal(null);
   };
 
-  useEffect(() => {
-    if (_meetingCache) { setSheetData(_meetingCache); setSheetLoading(false); return; }
-    const url = `https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
-    fetch(url).then(r => r.text()).then(text => {
-      try {
-        _meetingCache = parseMeetingSheet(text);
-        setSheetData(_meetingCache);
-      } catch(e) { setSheetError('데이터 파싱 오류: '+e.message); }
-      setSheetLoading(false);
-    }).catch(e => { setSheetError('로딩 오류: '+e.message); setSheetLoading(false); });
-  }, []);
   useEffect(() => { idRef.current = records.length ? Math.max(...records.map(r=>r.id),0)+1 : 1; }, []);
   useEffect(() => {
     if (!ctxMenu) return;
@@ -3117,87 +3084,12 @@ function MeetingLogPage({ interviewLogs, onSaveInterviewLogs }) {
   return (
     <div>
       <div className="page-header">
-        <div><div className="page-title">면담일지</div><div className="page-desc">임직원 면담 기록 — 구글 시트 연동</div></div>
+        <div><div className="page-title">면담일지</div><div className="page-desc">임직원 면담 기록</div></div>
         <div style={{ display:'flex', gap:6 }}>
-          <button className="btn btn-ghost btn-sm" style={{ fontSize:'var(--text-xs)', color:'var(--color-text-muted)' }}
-            onClick={()=>{ _meetingCache=null; setSheetData(null); setSheetLoading(true); setSheetError(null);
-              const url=`https://docs.google.com/spreadsheets/d/${MEETING_SHEET_ID}/gviz/tq?tqx=out:json&gid=${MEETING_GID}`;
-              fetch(url).then(r=>r.text()).then(text=>{
-                _meetingCache=parseMeetingSheet(text); setSheetData(_meetingCache); setSheetLoading(false);
-              }).catch(e=>{setSheetError(e.message);setSheetLoading(false);});
-            }}>새로고침</button>
           <button className="btn btn-primary" onClick={addRow}><Plus size={14}/> 메모 추가</button>
         </div>
       </div>
 
-      {/* 구글 시트 면담일지 */}
-      {sheetLoading && <div style={{ color:'var(--color-text-faint)', fontSize:'var(--text-sm)', marginBottom:16 }}>구글 시트 불러오는 중...</div>}
-      {sheetError && <div style={{ color:'var(--color-error)', fontSize:'var(--text-sm)', marginBottom:16 }}>⚠ {sheetError}</div>}
-      {sheetData && (() => {
-        const idxResign = sheetData.headers.indexOf('퇴사일자');
-        const idxName = sheetData.headers.indexOf('이름');
-        return (
-        <div style={{ marginBottom:24 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-            <div style={{ fontWeight:700, fontSize:'var(--text-sm)' }}>면담 기록 ({sheetData.rows.length}건)</div>
-            <select className="filter-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-              <option value="all">전체</option>
-              <option value="active">재직중</option>
-              <option value="resigned">퇴사</option>
-            </select>
-            <div className="search-wrap">
-              <Search size={13}/>
-              <input className="search-input" placeholder="검색..." value={sheetSearch} onChange={e=>setSheetSearch(e.target.value)} style={{ width:160 }}/>
-            </div>
-          </div>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ width:36, textAlign:'center' }}>No.</th>
-                  {sheetData.headers.map((h,i) => <th key={i}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {sheetData.rows
-                  .filter(r => !sheetSearch || r.some(v => v.toLowerCase().includes(sheetSearch.toLowerCase())))
-                  .filter(r => {
-                    if (statusFilter === 'all' || idxResign < 0) return true;
-                    const resigned = !!(r[idxResign]||'').trim();
-                    return statusFilter === 'resigned' ? resigned : !resigned;
-                  })
-                  .map((row, ri) => (
-                    <tr key={ri}>
-                      <td style={{ textAlign:'center', color:'var(--color-text-faint)', fontSize:11 }}>{ri+1}</td>
-                      {sheetData.headers.map((header,ci) => {
-                        const logCfg = INTERVIEW_LOG_TYPES[header];
-                        if (logCfg && idxName >= 0) {
-                          const empName = row[idxName];
-                          const status = row[ci];
-                          const record = (interviewLogs||[]).find(l => l.name===empName && l.logType===header);
-                          if (header === '비고') {
-                            const initial = record ? (record.overall||'') : ((status||'')==='-'||(status||'')===''||(status||'').startsWith('이동') ? '' : status);
-                            return <td key={ci} style={{textAlign:'center'}}><InlineNoteCell value={initial} onSave={(val)=>upsertInterviewLog(empName, header, { date: new Date().toISOString().slice(0,10), interviewer: record?.interviewer||'', overall: val })}/></td>;
-                          }
-                          const displayStatus = status === '(스킵)' ? '-' : status;
-                          let content;
-                          if (record || (displayStatus !== '-' && displayStatus !== '')) {
-                            content = <button className="btn btn-sm" style={{background:'var(--color-blue-light)',color:'var(--color-blue)',padding:'2px 8px',fontSize:11}} onClick={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record})}>열기</button>;
-                          } else {
-                            content = <HoverWriteCell status={displayStatus} onWrite={()=>setLogModal({name:empName, logType:header, questions:logCfg.questions, record:null})}/>;
-                          }
-                          return <td key={ci} style={{textAlign:'center'}}>{content}</td>;
-                        }
-                        return <td key={ci}>{row[ci]||''}</td>;
-                      })}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        );
-      })()}
 
       <div style={{ fontWeight:700, fontSize:'var(--text-sm)', marginBottom:8 }}>메모 ({records.length}건)</div>
       <div className="table-wrap">
