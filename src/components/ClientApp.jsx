@@ -2088,7 +2088,7 @@ function GuidePage() {
 /* ═══════════════════════════════════════════
    WORKER PAGE (근로자명부)
 ═══════════════════════════════════════════ */
-const WORKER_SHEET_ID = '1xpLBVZoEz3NDTeYGu0xCuGq_Xy97IgwT2O_3D9PnwC4';
+const WORKER_SHEET_ID = '10xgEQgoBL9tp-jslIkEN-Y4UEPmYs_oece58qMZiJmw';
 const WORKER_SHEETS = [
   {sheetName:'퍼플_재직',    company:'PPPP',    status:'재직'},
   {sheetName:'퍼플_퇴직',    company:'PPPP',    status:'퇴직'},
